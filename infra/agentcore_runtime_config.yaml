@@ -32,7 +32,7 @@ Parameters:
 
   FoundationModelId:
     Type: String
-    Default: anthropic.claude-sonnet-4-20250514
+    Default: anthropic.claude-sonnet-4-20250514-v1:0
     Description: ID del modelo fundacional de Amazon Bedrock
 
   SessionTimeoutSeconds:
@@ -69,8 +69,9 @@ Resources:
                 Action:
                   - bedrock:InvokeModel
                   - bedrock:InvokeModelWithResponseStream
-                Resource:
-                  - !Sub "arn:aws:bedrock:${PrimaryRegion}::foundation-model/${FoundationModelId}"
+                  - bedrock:GetInferenceProfile
+                  - bedrock:GetFoundationModel
+                Resource: "*"
         - PolicyName: AccessDynamoDBMemory
           PolicyDocument:
             Version: "2012-10-17"
