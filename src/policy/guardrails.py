@@ -26,6 +26,7 @@ from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from src.models.constants import (
+    DESCUENTOS_AUTORIZADOS,
     DESCUENTO_PRE_VENCIMIENTO,
     ESTADOS_CON_DATOS_BANCARIOS,
     ESTADOS_VALIDOS_PIPEFY,
@@ -39,16 +40,17 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 DATOS_BANCARIOS_CIME: str = (
-    "Banco: BBVA | Cuenta: 0123456789 | CLABE: 012345678901234567 "
-    "| Beneficiario: CIME Power Systems S.A. de C.V."
+    "Banco: BBVA | Cuenta: 0115868165 | CLABE: 012180001158681657 "
+    "| Beneficiario: PPE SYSTEMS SA DE CV | RFC: PSY2009023W0"
 )
 
 # Fragmentos clave para detectar presencia de datos bancarios en un cuerpo
 _FRAGMENTOS_BANCARIOS: List[str] = [
     "CLABE",
-    "012345678901234567",
-    "0123456789",
-    "CIME Power Systems S.A. de C.V.",
+    "012180001158681657",
+    "0115868165",
+    "PPE SYSTEMS SA DE CV",
+    "PSY2009023W0",
 ]
 
 # ---------------------------------------------------------------------------
@@ -291,32 +293,35 @@ class PolicyGuardrail:
                     bloqueado=True,
                     motivo_bloqueo=(
                         "Descuento con valor no numérico. "
-                        "Solo se permite exactamente 5%."
+                        "Solo se permiten 3%, 6% o 9%."
                     ),
                     tool_call_intentado=tool_name,
                     session_id=session_id,
                     estado_pipefy=estado_pipefy,
                     timestamp=timestamp,
                     opciones_disponibles=[
-                        "Aplicar el descuento autorizado del 5% por renovación anticipada",
+                        "Aplicar uno de los descuentos autorizados: 3%, 6% o 9%",
                         "Solicitar hablar con un asesor para condiciones especiales",
                     ],
                 )
 
-            # Comparar con tolerancia de punto flotante
-            if abs(descuento_valor - DESCUENTO_PRE_VENCIMIENTO) > 1e-9:
+            # Comparar con los descuentos autorizados (3%, 6%, 9%)
+            es_autorizado = any(
+                abs(descuento_valor - d) < 1e-9 for d in DESCUENTOS_AUTORIZADOS
+            )
+            if not es_autorizado:
                 return PolicyBlockResult(
                     bloqueado=True,
                     motivo_bloqueo=(
                         f"Descuento de {descuento_valor*100:.1f}% no autorizado. "
-                        f"Solo se permite exactamente 5%."
+                        f"Solo se permiten 3%, 6% o 9%."
                     ),
                     tool_call_intentado=tool_name,
                     session_id=session_id,
                     estado_pipefy=estado_pipefy,
                     timestamp=timestamp,
                     opciones_disponibles=[
-                        "Aplicar el descuento autorizado del 5% por renovación anticipada",
+                        "Aplicar uno de los descuentos autorizados: 3%, 6% o 9%",
                         "Solicitar hablar con un asesor para condiciones especiales",
                     ],
                 )
@@ -331,20 +336,21 @@ class PolicyGuardrail:
                 except ValueError:
                     continue
 
-                # 5% es el único descuento permitido
-                if abs(porcentaje - 5.0) > 1e-9:
+                # Solo 3%, 6% y 9% están autorizados
+                porcentajes_autorizados = [d * 100 for d in DESCUENTOS_AUTORIZADOS]
+                if not any(abs(porcentaje - p) < 1e-9 for p in porcentajes_autorizados):
                     return PolicyBlockResult(
                         bloqueado=True,
                         motivo_bloqueo=(
                             f"Correo contiene descuento de {porcentaje}% "
-                            f"no autorizado. Solo se permite 5%."
+                            f"no autorizado. Solo se permiten 3%, 6% o 9%."
                         ),
                         tool_call_intentado=tool_name,
                         session_id=session_id,
                         estado_pipefy=estado_pipefy,
                         timestamp=timestamp,
                         opciones_disponibles=[
-                            "Aplicar el descuento autorizado del 5% por renovación anticipada",
+                            "Aplicar uno de los descuentos autorizados: 3%, 6% o 9%",
                             "Solicitar hablar con un asesor para condiciones especiales",
                         ],
                     )

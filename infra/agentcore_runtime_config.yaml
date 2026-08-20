@@ -137,6 +137,21 @@ Resources:
           Value: !Ref Environment
 
   # --------------------------------------------------------------------------
+  # Lambda para Action Group: enviar_correo
+  # --------------------------------------------------------------------------
+  # NOTA: La Lambda de la tool se despliega via SAM (template.yaml).
+  # Aqui solo se referencia su ARN.
+
+  # Permiso para que Bedrock invoque la Lambda
+  EnviarCorreoPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Sub "arn:aws:lambda:${PrimaryRegion}:${AWS::AccountId}:function:cime-tool-enviar-correo-${Environment}"
+      Action: lambda:InvokeFunction
+      Principal: bedrock.amazonaws.com
+      SourceAccount: !Ref AWS::AccountId
+
+  # --------------------------------------------------------------------------
   # Amazon Bedrock Agent
   # --------------------------------------------------------------------------
   CIMEBedrockAgent:
@@ -253,6 +268,28 @@ Resources:
       Tags:
         Project: cime-agente-comercial
         Environment: !Ref Environment
+      ActionGroups:
+        - ActionGroupName: enviar_correo_group
+          Description: "Envia correos a clientes via Amazon SES"
+          ActionGroupExecutor:
+            Lambda: !Sub "arn:aws:lambda:${PrimaryRegion}:${AWS::AccountId}:function:cime-tool-enviar-correo-${Environment}"
+          FunctionSchema:
+            Functions:
+              - Name: enviar_correo
+                Description: "Envia un correo electronico al cliente con el asunto y cuerpo especificados. Usar para contacto inicial, seguimiento, cotizacion, confirmacion de comprobante y escalamiento."
+                Parameters:
+                  destinatario:
+                    Description: "Direccion de correo electronico del destinatario (RFC 5321)"
+                    Type: string
+                    Required: true
+                  asunto:
+                    Description: "Linea de asunto del correo"
+                    Type: string
+                    Required: true
+                  cuerpo:
+                    Description: "Contenido del correo en texto plano"
+                    Type: string
+                    Required: true
 
   # --------------------------------------------------------------------------
   # Agent Alias (para invocar el agente desde Zapier/webhook)

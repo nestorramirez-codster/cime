@@ -132,7 +132,8 @@ def enviar_contacto_inicial(
     if pre_vencimiento:
         descuento_texto = (
             f"\n\nComo beneficio por renovar antes de la fecha de vencimiento, "
-            f"le ofrecemos un {int(DESCUENTO_PRE_VENCIMIENTO * 100)}% de descuento "
+            f"le ofrecemos un descuento de hasta "
+            f"{int(DESCUENTO_PRE_VENCIMIENTO * 100)}% "
             f"sobre el precio de renovación."
         )
     else:

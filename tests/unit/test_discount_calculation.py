@@ -7,8 +7,8 @@ Property 3: Consistencia de contenido pre/post vencimiento
 **Validates: Requirements 2.3, 2.4**
 
 Estrategia metamórfica:
-- Fecha futura (pre-vencimiento)  → cuerpo del correo DEBE contener mención de descuento 5%
-- Fecha pasada (post-vencimiento) → cuerpo del correo NO DEBE contener mención de descuento 5%
+- Fecha futura (pre-vencimiento)  → cuerpo del correo DEBE contener mención de descuento 3%
+- Fecha pasada (post-vencimiento) → cuerpo del correo NO DEBE contener mención de descuento 3%
 
 Se ejercita `enviar_contacto_inicial` con mocks de enviar_correo y actualizar_pipefy,
 inyectando un mock_kb_client con score >= 0.70 para que el flujo llegue a generar el correo.
@@ -108,7 +108,7 @@ class TestProperty3ConsistenciaPrePostVencimiento:
     """
 
     # -----------------------------------------------------------------------
-    # Pre-vencimiento: fecha futura → correo DEBE contener mención de 5%
+    # Pre-vencimiento: fecha futura → correo DEBE contener mención de 3%
     # -----------------------------------------------------------------------
 
     @given(
@@ -124,7 +124,7 @@ class TestProperty3ConsistenciaPrePostVencimiento:
     )
     @patch("src.agent.flows.contacto_inicial.actualizar_pipefy")
     @patch("src.agent.flows.contacto_inicial.enviar_correo")
-    def test_pre_vencimiento_incluye_descuento_5_porciento(
+    def test_pre_vencimiento_incluye_descuento_3_porciento(
         self,
         mock_enviar_correo: MagicMock,
         mock_actualizar_pipefy: MagicMock,
@@ -135,7 +135,7 @@ class TestProperty3ConsistenciaPrePostVencimiento:
     ) -> None:
         """
         Req 2.3 — Para cualquier fecha futura (pre-vencimiento), el cuerpo
-        del correo de contacto inicial DEBE contener mención del 5% de descuento.
+        del correo de contacto inicial DEBE contener mención del 3% de descuento.
         """
         mock_enviar_correo.return_value = MagicMock(
             success=True, message_id="msg-prop3-pre", error_code=None
@@ -167,9 +167,9 @@ class TestProperty3ConsistenciaPrePostVencimiento:
         call_args = mock_enviar_correo.call_args
         cuerpo = call_args.kwargs.get("cuerpo", "")
 
-        assert "5%" in cuerpo, (
+        assert "3%" in cuerpo, (
             f"Pre-vencimiento (fecha={fecha}): el cuerpo del correo debe "
-            f"contener '5%' pero no lo contiene.\nCuerpo: {cuerpo[:200]}"
+            f"contener '3%' pero no lo contiene.\nCuerpo: {cuerpo[:200]}"
         )
         assert "descuento" in cuerpo.lower(), (
             f"Pre-vencimiento (fecha={fecha}): el cuerpo del correo debe "
@@ -177,7 +177,7 @@ class TestProperty3ConsistenciaPrePostVencimiento:
         )
 
     # -----------------------------------------------------------------------
-    # Post-vencimiento: fecha pasada → correo NO DEBE contener mención de 5%
+    # Post-vencimiento: fecha pasada → correo NO DEBE contener mención de 3%
     # -----------------------------------------------------------------------
 
     @given(
@@ -193,7 +193,7 @@ class TestProperty3ConsistenciaPrePostVencimiento:
     )
     @patch("src.agent.flows.contacto_inicial.actualizar_pipefy")
     @patch("src.agent.flows.contacto_inicial.enviar_correo")
-    def test_post_vencimiento_excluye_descuento_5_porciento(
+    def test_post_vencimiento_excluye_descuento_3_porciento(
         self,
         mock_enviar_correo: MagicMock,
         mock_actualizar_pipefy: MagicMock,
@@ -204,7 +204,7 @@ class TestProperty3ConsistenciaPrePostVencimiento:
     ) -> None:
         """
         Req 2.4 — Para cualquier fecha pasada o de hoy (post-vencimiento), el cuerpo
-        del correo de contacto inicial NO DEBE contener mención del 5% de descuento.
+        del correo de contacto inicial NO DEBE contener mención del 3% de descuento.
         """
         mock_enviar_correo.return_value = MagicMock(
             success=True, message_id="msg-prop3-post", error_code=None
@@ -236,9 +236,9 @@ class TestProperty3ConsistenciaPrePostVencimiento:
         call_args = mock_enviar_correo.call_args
         cuerpo = call_args.kwargs.get("cuerpo", "")
 
-        assert "5%" not in cuerpo, (
+        assert "3%" not in cuerpo, (
             f"Post-vencimiento (fecha={fecha}): el cuerpo del correo NO debe "
-            f"contener '5%' pero lo contiene.\nCuerpo: {cuerpo[:200]}"
+            f"contener '3%' pero lo contiene.\nCuerpo: {cuerpo[:200]}"
         )
         assert "descuento" not in cuerpo.lower(), (
             f"Post-vencimiento (fecha={fecha}): el cuerpo del correo NO debe "

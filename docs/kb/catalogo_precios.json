@@ -1,180 +1,371 @@
 {
   "metadata": {
-    "version": "1.0.0",
-    "fecha_actualizacion": "2025-01-15",
+    "version": "2.0.0",
+    "fecha_actualizacion": "2026-02-03",
+    "vigencia": "2026-03-31",
     "moneda": "MXN",
-    "notas": "Precios de renovación anual de póliza de mantenimiento por tipo de equipo y plan. Todos los precios son antes de IVA."
+    "notas": "Precios antes de IVA. CDMX y Área Metropolitana, Guadalajara y Área Metropolitana y Cancún. Descuento 20% sobre Póliza 3 Visitas si se vende junto con planta nueva. Visita en falso: $2,800 + viáticos."
   },
-  "planes": {
-    "basico": {
-      "nombre": "Básico",
-      "descripcion": "Mantenimiento preventivo semestral, soporte telefónico en horario laboral (L-V 9:00-18:00), tiempo de respuesta 48 horas hábiles.",
-      "incluye": [
-        "2 visitas preventivas al año",
-        "Soporte telefónico L-V 9:00-18:00",
-        "Diagnóstico remoto",
-        "Reporte de estado semestral"
-      ]
+  "descuentos": {
+    "planta_nueva": {
+      "porcentaje": 20,
+      "aplica_sobre": "POLIZA 3 VISITAS",
+      "condicion": "Se vende junto con la planta nueva"
     },
-    "estandar": {
-      "nombre": "Estándar",
-      "descripcion": "Mantenimiento preventivo trimestral, soporte telefónico extendido (L-S 8:00-20:00), tiempo de respuesta 24 horas hábiles, refacciones con 10% de descuento.",
-      "incluye": [
-        "4 visitas preventivas al año",
-        "Soporte telefónico L-S 8:00-20:00",
-        "Diagnóstico remoto y presencial",
-        "Reporte de estado trimestral",
-        "10% descuento en refacciones",
-        "1 mantenimiento correctivo incluido"
-      ]
-    },
-    "premium": {
-      "nombre": "Premium",
-      "descripcion": "Mantenimiento preventivo bimestral, soporte 24/7, tiempo de respuesta 4 horas, refacciones con 20% de descuento, técnico dedicado.",
-      "incluye": [
-        "6 visitas preventivas al año",
-        "Soporte 24/7 todos los días",
-        "Diagnóstico remoto y presencial prioritario",
-        "Reporte de estado mensual",
-        "20% descuento en refacciones",
-        "3 mantenimientos correctivos incluidos",
-        "Técnico dedicado asignado",
-        "Monitoreo remoto continuo"
+    "renovacion": {
+      "niveles": [
+        {"porcentaje": 3, "condicion": "Disposición estándar del cliente"},
+        {"porcentaje": 6, "condicion": "Buena disposición del cliente"},
+        {"porcentaje": 9, "condicion": "Excelente disposición / renovación inmediata"}
       ]
     }
   },
-  "equipos": [
-    {
-      "tipo": "UPS Monofásico 1-3 kVA",
-      "categoria": "Monofásico",
-      "capacidad_kva": "1-3",
-      "aplicacion": "Oficinas pequeñas, equipos de cómputo individuales",
-      "precios": {
-        "basico": 1200.00,
-        "estandar": 2400.00,
-        "premium": 4800.00
-      }
+  "servicios": [
+    "POLIZA 3 VISITAS",
+    "POLIZA 2 VISITAS",
+    "MANTENIMIENTO",
+    "VISITA DIAGNOSTICO",
+    "KIT",
+    "ARRANQUE"
+  ],
+  "categorias": {
+    "air_cool": {
+      "nombre": "Air Cool",
+      "descripcion": "Plantas eléctricas Generac residenciales/comerciales enfriadas por aire",
+      "equipos": [
+        {
+          "modelo": "7kW 410cc 7.5kW, 432cc & 420cc Core Power",
+          "capacidad": "7 y 7.5 kW",
+          "precios": {
+            "POLIZA 3 VISITAS": 7243.84,
+            "POLIZA 2 VISITAS": 5419.47,
+            "MANTENIMIENTO": 4279.87,
+            "VISITA DIAGNOSTICO": 1998.13,
+            "KIT": 803.14,
+            "ARRANQUE": 3496.32
+          }
+        },
+        {
+          "modelo": "8kW, 410cc Kit (For HSB models prior to 2013)",
+          "capacidad": "8 kW",
+          "precios": {
+            "POLIZA 3 VISITAS": 7243.84,
+            "POLIZA 2 VISITAS": 5419.47,
+            "MANTENIMIENTO": 4279.87,
+            "VISITA DIAGNOSTICO": 1998.13,
+            "KIT": 803.14,
+            "ARRANQUE": 3496.32
+          }
+        },
+        {
+          "modelo": "8kW & 9kW, 10kW (2021) 410cc Kit 6482",
+          "capacidad": "8, 9 y 10 kW (2021)",
+          "precios": {
+            "POLIZA 3 VISITAS": 7243.84,
+            "POLIZA 2 VISITAS": 5419.47,
+            "MANTENIMIENTO": 4279.87,
+            "VISITA DIAGNOSTICO": 1998.13,
+            "KIT": 803.14,
+            "ARRANQUE": 3496.32
+          }
+        },
+        {
+          "modelo": "10-11kW, 530cc Kit (anteriores al 2013)",
+          "capacidad": "10 y 11 kW",
+          "precios": {
+            "POLIZA 3 VISITAS": 7499.39,
+            "POLIZA 2 VISITAS": 5675.01,
+            "MANTENIMIENTO": 4584.09,
+            "VISITA DIAGNOSTICO": 1998.13,
+            "KIT": 1046.51,
+            "ARRANQUE": 3496.32
+          }
+        },
+        {
+          "modelo": "10-11kW, 530cc Kit (posterior 2013)",
+          "capacidad": "10 y 11 kW",
+          "precios": {
+            "POLIZA 3 VISITAS": 7452.00,
+            "POLIZA 2 VISITAS": 5627.62,
+            "MANTENIMIENTO": 4527.67,
+            "VISITA DIAGNOSTICO": 1998.13,
+            "KIT": 1001.38,
+            "ARRANQUE": 3496.32
+          }
+        },
+        {
+          "modelo": "13kW through 17kW, 990cc Kit (For HSB models)",
+          "capacidad": "13-17 kW",
+          "precios": {
+            "POLIZA 3 VISITAS": 7652.71,
+            "POLIZA 2 VISITAS": 5828.34,
+            "MANTENIMIENTO": 4766.62,
+            "VISITA DIAGNOSTICO": 1998.13,
+            "KIT": 1192.54,
+            "ARRANQUE": 3496.32
+          }
+        },
+        {
+          "modelo": "13kW through 16kW, 816cc Kit (14kW y 18kW desde 2021)",
+          "capacidad": "13-14, 16-18 kW",
+          "precios": {
+            "POLIZA 3 VISITAS": 7576.05,
+            "POLIZA 2 VISITAS": 5751.67,
+            "MANTENIMIENTO": 4675.35,
+            "VISITA DIAGNOSTICO": 1998.13,
+            "KIT": 1119.53,
+            "ARRANQUE": 3496.32
+          }
+        },
+        {
+          "modelo": "Maintenance Kit, VSCF, 15kW & 20kW 999cc Kit",
+          "capacidad": "15 kW",
+          "precios": {
+            "POLIZA 3 VISITAS": 7652.71,
+            "POLIZA 2 VISITAS": 5828.34,
+            "MANTENIMIENTO": 4766.62,
+            "VISITA DIAGNOSTICO": 1998.13,
+            "KIT": 1192.54,
+            "ARRANQUE": 3496.32
+          }
+        },
+        {
+          "modelo": "Maintenance Kit, 20kW, 999cc Kit (For HSB models prior to 2013)",
+          "capacidad": "20 kW",
+          "precios": {
+            "POLIZA 3 VISITAS": 7576.05,
+            "POLIZA 2 VISITAS": 5751.67,
+            "MANTENIMIENTO": 4675.35,
+            "VISITA DIAGNOSTICO": 1998.13,
+            "KIT": 1119.53,
+            "ARRANQUE": 3496.32
+          }
+        },
+        {
+          "modelo": "Maintenance 20kW, 22KW & 999cc TRINITY modelos air cooled",
+          "capacidad": "20 (3f) y 22 kW",
+          "precios": {
+            "POLIZA 3 VISITAS": 7576.05,
+            "POLIZA 2 VISITAS": 5751.67,
+            "MANTENIMIENTO": 4675.35,
+            "VISITA DIAGNOSTICO": 1998.13,
+            "KIT": 1119.53,
+            "ARRANQUE": 3496.32
+          }
+        },
+        {
+          "modelo": "Maintenance 24kW & 26kW modelos air cooled",
+          "capacidad": "24 y 26 kW",
+          "precios": {
+            "POLIZA 3 VISITAS": 7576.05,
+            "POLIZA 2 VISITAS": 5751.67,
+            "MANTENIMIENTO": 4675.35,
+            "VISITA DIAGNOSTICO": 1998.13,
+            "KIT": 1119.53,
+            "ARRANQUE": 3496.32
+          }
+        }
+      ]
     },
-    {
-      "tipo": "UPS Monofásico 5-10 kVA",
-      "categoria": "Monofásico",
-      "capacidad_kva": "5-10",
-      "aplicacion": "Servidores, redes empresariales pequeñas",
-      "precios": {
-        "basico": 3500.00,
-        "estandar": 6800.00,
-        "premium": 12500.00
-      }
+    "liquid_cool": {
+      "nombre": "Liquid Cool",
+      "descripcion": "Plantas eléctricas Generac comerciales/industriales enfriadas por líquido",
+      "equipos": [
+        {
+          "modelo": "Maintenance & 22kW, 999cc Kit (2013 and later HSB models)",
+          "capacidad": "QT022 / RG22 RG27",
+          "precios": {
+            "POLIZA 3 VISITAS": 10079.59,
+            "POLIZA 2 VISITAS": 8569.07,
+            "MANTENIMIENTO": 7475.65,
+            "VISITA DIAGNOSTICO": 2080.98,
+            "KIT": 2648.98,
+            "ARRANQUE": 3609.31
+          }
+        },
+        {
+          "modelo": "Maintenance Kit, 1.5L; 25kW & 30kW",
+          "capacidad": "25-30 kW 1.5L",
+          "precios": {
+            "POLIZA 3 VISITAS": 10892.02,
+            "POLIZA 2 VISITAS": 9420.19,
+            "MANTENIMIENTO": 8442.83,
+            "VISITA DIAGNOSTICO": 2080.98,
+            "KIT": 2648.98,
+            "ARRANQUE": 3609.31
+          }
+        },
+        {
+          "modelo": "Maintenance Kit, 1.6L; 25kW & 30kW",
+          "capacidad": "25-30 kW 1.6L",
+          "precios": {
+            "POLIZA 3 VISITAS": 10134.49,
+            "POLIZA 2 VISITAS": 8626.59,
+            "MANTENIMIENTO": 7541.01,
+            "VISITA DIAGNOSTICO": 2080.98,
+            "KIT": 1927.53,
+            "ARRANQUE": 3609.31
+          }
+        },
+        {
+          "modelo": "Maintenance Kit, 2.4L; 36kW",
+          "capacidad": "QT036(AI)/ RG32 RG36 RG38",
+          "precios": {
+            "POLIZA 3 VISITAS": 11555.64,
+            "POLIZA 2 VISITAS": 9948.82,
+            "MANTENIMIENTO": 8854.22,
+            "VISITA DIAGNOSTICO": 2255.15,
+            "KIT": 2713.06,
+            "ARRANQUE": 3609.31
+          }
+        },
+        {
+          "modelo": "Maintenance Kit, 2.4L; 45kW",
+          "capacidad": "QT045 (AI)/RG45",
+          "precios": {
+            "POLIZA 3 VISITAS": 10035.39,
+            "POLIZA 2 VISITAS": 8356.17,
+            "MANTENIMIENTO": 7044.40,
+            "VISITA DIAGNOSTICO": 2255.15,
+            "KIT": 1265.20,
+            "ARRANQUE": 3609.31
+          }
+        },
+        {
+          "modelo": "Maintenance Kit, 5.4L; 48kW",
+          "capacidad": "QT048 (AI)/RG48",
+          "precios": {
+            "POLIZA 3 VISITAS": 12512.78,
+            "POLIZA 2 VISITAS": 10951.52,
+            "MANTENIMIENTO": 9993.67,
+            "VISITA DIAGNOSTICO": 2255.15,
+            "KIT": 3173.61,
+            "ARRANQUE": 3609.31
+          }
+        },
+        {
+          "modelo": "Maintenance Kit, 4.2L; 48kW",
+          "capacidad": "QT048 (AI)/RG48 4.2L",
+          "precios": {
+            "POLIZA 3 VISITAS": 12156.59,
+            "POLIZA 2 VISITAS": 10321.54,
+            "MANTENIMIENTO": 8985.91,
+            "VISITA DIAGNOSTICO": 2523.66,
+            "KIT": 2359.41,
+            "ARRANQUE": 3609.31
+          }
+        },
+        {
+          "modelo": "Maintenance Kit, 2.4L; 60kW",
+          "capacidad": "QT060/RG60",
+          "precios": {
+            "POLIZA 3 VISITAS": 12098.60,
+            "POLIZA 2 VISITAS": 10260.79,
+            "MANTENIMIENTO": 8916.87,
+            "VISITA DIAGNOSTICO": 2523.66,
+            "KIT": 2529.68,
+            "ARRANQUE": 3609.31
+          }
+        },
+        {
+          "modelo": "Maintenance Kit, 70kW, 100kW, 130kW & 150kW",
+          "capacidad": "QT070(S)",
+          "precios": {
+            "POLIZA 3 VISITAS": 14789.60,
+            "POLIZA 2 VISITAS": 13079.93,
+            "MANTENIMIENTO": 12120.44,
+            "VISITA DIAGNOSTICO": 2523.66,
+            "KIT": 4318.80,
+            "ARRANQUE": 3950.08
+          }
+        },
+        {
+          "modelo": "Maintenance Kit, 4.6L; 80kW",
+          "capacidad": "QTA080",
+          "precios": {
+            "POLIZA 3 VISITAS": 14789.60,
+            "POLIZA 2 VISITAS": 13079.93,
+            "MANTENIMIENTO": 12120.44,
+            "VISITA DIAGNOSTICO": 2523.66,
+            "KIT": 4318.80,
+            "ARRANQUE": 3950.08
+          }
+        },
+        {
+          "modelo": "Maintenance Kit, 5.4L; 80kW",
+          "capacidad": "QTA080(S)",
+          "precios": {
+            "POLIZA 3 VISITAS": 15026.38,
+            "POLIZA 2 VISITAS": 13327.98,
+            "MANTENIMIENTO": 12402.32,
+            "VISITA DIAGNOSTICO": 2523.66,
+            "KIT": 4318.80,
+            "ARRANQUE": 3950.08
+          }
+        },
+        {
+          "modelo": "Maintenance Kit, 100kW, 130kW & 150kW",
+          "capacidad": "QT100 QT130 QT150",
+          "precios": {
+            "POLIZA 3 VISITAS": 16861.35,
+            "POLIZA 2 VISITAS": 15250.33,
+            "MANTENIMIENTO": 14586.81,
+            "VISITA DIAGNOSTICO": 2523.66,
+            "KIT": 5743.65,
+            "ARRANQUE": 3950.08
+          }
+        }
+      ]
     },
-    {
-      "tipo": "UPS Trifásico 10-20 kVA",
-      "categoria": "Trifásico",
-      "capacidad_kva": "10-20",
-      "aplicacion": "Data centers pequeños, infraestructura de TI mediana",
-      "precios": {
-        "basico": 8500.00,
-        "estandar": 15000.00,
-        "premium": 28000.00
-      }
+    "ply_generac": {
+      "nombre": "PLY Generac",
+      "descripcion": "Plantas eléctricas Generac industriales línea PLY (diesel/gas)",
+      "equipos": [
+        {"modelo": "PLY 20", "capacidad": "20 kW", "precios": {"POLIZA 3 VISITAS": 14208.59, "POLIZA 2 VISITAS": 11992.59, "MANTENIMIENTO": 9924.72, "VISITA DIAGNOSTICO": 2324.82, "KIT": 2356.25, "ARRANQUE": 4961.16}},
+        {"modelo": "PLY 30", "capacidad": "30 kW", "precios": {"POLIZA 3 VISITAS": 15601.28, "POLIZA 2 VISITAS": 13448.58, "MANTENIMIENTO": 11507.32, "VISITA DIAGNOSTICO": 2324.82, "KIT": 2976.85, "ARRANQUE": 4961.16}},
+        {"modelo": "PLY 50", "capacidad": "50 kW", "precios": {"POLIZA 3 VISITAS": 16690.00, "POLIZA 2 VISITAS": 14586.79, "MANTENIMIENTO": 12744.50, "VISITA DIAGNOSTICO": 2861.85, "KIT": 2839.10, "ARRANQUE": 4961.16}},
+        {"modelo": "PLY 60", "capacidad": "60 kW", "precios": {"POLIZA 3 VISITAS": 16690.00, "POLIZA 2 VISITAS": 14586.79, "MANTENIMIENTO": 12744.50, "VISITA DIAGNOSTICO": 2861.85, "KIT": 2839.10, "ARRANQUE": 4961.16}},
+        {"modelo": "PLY 80", "capacidad": "80 kW", "precios": {"POLIZA 3 VISITAS": 22435.47, "POLIZA 2 VISITAS": 20593.41, "MANTENIMIENTO": 19273.44, "VISITA DIAGNOSTICO": 2861.85, "KIT": 6483.75, "ARRANQUE": 4961.16}},
+        {"modelo": "PLY 100", "capacidad": "100 kW", "precios": {"POLIZA 3 VISITAS": 24976.11, "POLIZA 2 VISITAS": 22364.16, "MANTENIMIENTO": 20235.81, "VISITA DIAGNOSTICO": 3747.22, "KIT": 6483.75, "ARRANQUE": 5474.84}},
+        {"modelo": "PLY 125", "capacidad": "125 kW", "precios": {"POLIZA 3 VISITAS": 30629.74, "POLIZA 2 VISITAS": 28274.78, "MANTENIMIENTO": 26660.39, "VISITA DIAGNOSTICO": 3747.22, "KIT": 9686.98, "ARRANQUE": 5474.84}},
+        {"modelo": "PLY 150", "capacidad": "150 kW", "precios": {"POLIZA 3 VISITAS": 30629.74, "POLIZA 2 VISITAS": 28274.78, "MANTENIMIENTO": 26660.39, "VISITA DIAGNOSTICO": 3747.22, "KIT": 9686.98, "ARRANQUE": 5474.84}},
+        {"modelo": "PLY 175", "capacidad": "175 kW", "precios": {"POLIZA 3 VISITAS": 30629.74, "POLIZA 2 VISITAS": 28274.78, "MANTENIMIENTO": 26660.39, "VISITA DIAGNOSTICO": 3747.22, "KIT": 9686.98, "ARRANQUE": 8362.56}},
+        {"modelo": "PLY 200", "capacidad": "200 kW", "precios": {"POLIZA 3 VISITAS": 33900.26, "POLIZA 2 VISITAS": 31069.85, "MANTENIMIENTO": 29020.12, "VISITA DIAGNOSTICO": 3123.11, "KIT": 11032.05, "ARRANQUE": 8362.56}},
+        {"modelo": "PLY 250", "capacidad": "250 kW", "precios": {"POLIZA 3 VISITAS": 47255.95, "POLIZA 2 VISITAS": 45032.61, "MANTENIMIENTO": 44197.04, "VISITA DIAGNOSTICO": 3747.22, "KIT": 16921.63, "ARRANQUE": 8362.56}},
+        {"modelo": "PLY 300", "capacidad": "300 kW", "precios": {"POLIZA 3 VISITAS": 47965.98, "POLIZA 2 VISITAS": 45774.91, "MANTENIMIENTO": 45003.89, "VISITA DIAGNOSTICO": 3747.22, "KIT": 16921.63, "ARRANQUE": 8362.56}},
+        {"modelo": "PLY 350", "capacidad": "350 kW", "precios": {"POLIZA 3 VISITAS": 47965.98, "POLIZA 2 VISITAS": 45774.91, "MANTENIMIENTO": 41403.58, "VISITA DIAGNOSTICO": 3123.11, "KIT": 16921.63, "ARRANQUE": 8362.56}},
+        {"modelo": "PLY 400", "capacidad": "400 kW", "precios": {"POLIZA 3 VISITAS": 52019.37, "POLIZA 2 VISITAS": 46891.96, "MANTENIMIENTO": 39400.04, "VISITA DIAGNOSTICO": 7491.92, "KIT": 16921.63, "ARRANQUE": 12500.00}},
+        {"modelo": "PLY 450", "capacidad": "450 kW", "precios": {"POLIZA 3 VISITAS": 57440.89, "POLIZA 2 VISITAS": 52559.92, "MANTENIMIENTO": 45068.00, "VISITA DIAGNOSTICO": 7491.92, "KIT": 16921.63, "ARRANQUE": 12500.00}},
+        {"modelo": "PLY 500", "capacidad": "500 kW", "precios": {"POLIZA 3 VISITAS": 61022.78, "POLIZA 2 VISITAS": 55056.39, "MANTENIMIENTO": 46316.23, "VISITA DIAGNOSTICO": 7491.92, "KIT": 16921.63, "ARRANQUE": 12500.00}},
+        {"modelo": "PLY 600", "capacidad": "600 kW", "precios": {"POLIZA 3 VISITAS": 76433.32, "POLIZA 2 VISITAS": 71167.40, "MANTENIMIENTO": 62427.25, "VISITA DIAGNOSTICO": 8740.15, "KIT": 22601.25, "ARRANQUE": 12500.00}},
+        {"modelo": "PLY 750", "capacidad": "750 kW", "precios": {"POLIZA 3 VISITAS": 139884.84, "POLIZA 2 VISITAS": 135006.62, "MANTENIMIENTO": 123770.00, "VISITA DIAGNOSTICO": 11236.62, "KIT": 65124.18, "ARRANQUE": 12500.00}}
+      ]
     },
-    {
-      "tipo": "UPS Trifásico 20-40 kVA",
-      "categoria": "Trifásico",
-      "capacidad_kva": "20-40",
-      "aplicacion": "Data centers medianos, hospitales, industria ligera",
-      "precios": {
-        "basico": 18000.00,
-        "estandar": 32000.00,
-        "premium": 55000.00
-      }
+    "portatiles": {
+      "nombre": "Plantas Gasolina Generac Portátiles",
+      "descripcion": "Plantas portátiles. Servicio exclusivo en sucursal. No incluye envío ni recolección.",
+      "condiciones": "Cargo por almacenaje: $50.00 MXN + IVA por día natural a partir del día 4 tras notificación de entrega.",
+      "equipos": [
+        {"modelo": "iQ3500, XG4000, XP4000", "precios": {"MANTENIMIENTO": 2991.95, "DIAGNOSTICO": 983.04, "KIT": 632.78}},
+        {"modelo": "XG5600E, XG6400E, XG6500, XG7000E, XG8000E, XP5600E, XP6400E, XP6500E, XP8000E", "precios": {"MANTENIMIENTO": 2991.95, "DIAGNOSTICO": 983.04, "KIT": 632.78}},
+        {"modelo": "XG10000E, XP10000E", "precios": {"MANTENIMIENTO": 3299.45, "DIAGNOSTICO": 983.04, "KIT": 632.78}},
+        {"modelo": "GP15000E, GP17500E", "precios": {"MANTENIMIENTO": 3755.78, "DIAGNOSTICO": 983.04, "KIT": 997.84}},
+        {"modelo": "GP5500, GP6500, GP6500E, GP7500E, GP8000E, XT8000E, HW5500, HW5500W, HW6500, HW7500E", "precios": {"MANTENIMIENTO": 2991.95, "DIAGNOSTICO": 983.04, "KIT": 632.78}}
+      ]
     },
-    {
-      "tipo": "UPS Trifásico 40-80 kVA",
-      "categoria": "Trifásico",
-      "capacidad_kva": "40-80",
-      "aplicacion": "Industria pesada, data centers grandes, hospitales de alta complejidad",
-      "precios": {
-        "basico": 35000.00,
-        "estandar": 62000.00,
-        "premium": 105000.00
-      }
-    },
-    {
-      "tipo": "UPS Trifásico 80-160 kVA",
-      "categoria": "Trifásico",
-      "capacidad_kva": "80-160",
-      "aplicacion": "Infraestructura crítica, grandes corporativos, telecomunicaciones",
-      "precios": {
-        "basico": 65000.00,
-        "estandar": 115000.00,
-        "premium": 195000.00
-      }
-    },
-    {
-      "tipo": "UPS Trifásico 160-300 kVA",
-      "categoria": "Trifásico",
-      "capacidad_kva": "160-300",
-      "aplicacion": "Data centers enterprise, plantas industriales, aeropuertos",
-      "precios": {
-        "basico": 120000.00,
-        "estandar": 210000.00,
-        "premium": 350000.00
-      }
-    },
-    {
-      "tipo": "UPS Trifásico 300-500 kVA",
-      "categoria": "Trifásico",
-      "capacidad_kva": "300-500",
-      "aplicacion": "Data centers hyperscale, infraestructura nacional crítica",
-      "precios": {
-        "basico": 185000.00,
-        "estandar": 320000.00,
-        "premium": 500000.00
-      }
-    },
-    {
-      "tipo": "UPS Modular Escalable 20-200 kVA",
-      "categoria": "Modular",
-      "capacidad_kva": "20-200",
-      "aplicacion": "Data centers con crecimiento planificado, infraestructura flexible",
-      "precios": {
-        "basico": 25000.00,
-        "estandar": 45000.00,
-        "premium": 78000.00
-      }
-    },
-    {
-      "tipo": "Inversor/Rectificador Industrial",
-      "categoria": "Industrial",
-      "capacidad_kva": "Variable",
-      "aplicacion": "Plantas de manufactura, sistemas de alimentación DC",
-      "precios": {
-        "basico": 15000.00,
-        "estandar": 28000.00,
-        "premium": 48000.00
-      }
-    },
-    {
-      "tipo": "Banco de Baterías (complemento UPS)",
-      "categoria": "Almacenamiento",
-      "capacidad_kva": "N/A",
-      "aplicacion": "Extensión de autonomía para cualquier UPS",
-      "precios": {
-        "basico": 5500.00,
-        "estandar": 9800.00,
-        "premium": 16500.00
-      }
-    },
-    {
-      "tipo": "PDU Inteligente (rack)",
-      "categoria": "Distribución",
-      "capacidad_kva": "N/A",
-      "aplicacion": "Distribución eléctrica en racks de data center",
-      "precios": {
-        "basico": 2800.00,
-        "estandar": 5200.00,
-        "premium": 8900.00
-      }
+    "baterias": {
+      "nombre": "Baterías",
+      "descripcion": "Baterías de reemplazo para plantas eléctricas. Precio de envío por paquetería: $500 + IVA. La instalación puede realizarse en visita de póliza sin costo adicional.",
+      "equipos": [
+        {"modelo": "Batería 26R", "aplicacion": "Equipos de 10kW - 60kW", "precio_sin_poliza": 2415.00, "precio_con_poliza": 2055.00},
+        {"modelo": "Batería 24F", "aplicacion": "Equipos de 60kW - 80kW", "precio_sin_poliza": 2590.00, "precio_con_poliza": 2205.00},
+        {"modelo": "Batería GTX 360", "aplicacion": "Equipos de 7.5kW y portátiles GP + de 10kW", "precio_sin_poliza": 1665.00, "precio_con_poliza": 1415.00},
+        {"modelo": "Baterías 8D", "aplicacion": "Equipos de 300kW", "precio_sin_poliza": 6815.00, "precio_con_poliza": 5795.00},
+        {"modelo": "Batería SX27F", "aplicacion": "Varios", "precio_sin_poliza": 3180.00, "precio_con_poliza": 2705.00}
+      ],
+      "instalacion": {"precio": 1550.00, "precio_con_poliza": 1317.50, "nota": "Incluir viáticos fuera de localidad. Se puede realizar en visita de póliza sin costo."}
     }
-  ]
+  },
+  "pipefy_id": "301323971",
+  "correo_contacto": "argenis.juarez@cimepowersystems.com.mx"
 }

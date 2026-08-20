@@ -375,3 +375,106 @@ def _respuesta_error(
         },
         "body": json.dumps(body, ensure_ascii=False),
     }
+
+
+# ---------------------------------------------------------------------------
+# Handler de prueba: envía correo de contacto inicial directamente via SES
+# ---------------------------------------------------------------------------
+
+
+def test_email_handler(event: dict[str, Any], context: Any = None) -> dict[str, Any]:
+    """
+    Handler de prueba que recibe un payload y envía el correo de contacto
+    inicial directamente via SES (sin pasar por el Bedrock Agent).
+
+    Usa la plantilla pre-vencimiento con los datos del payload.
+    """
+    import boto3
+    from datetime import date
+
+    try:
+        body = _extraer_body(event)
+        payload = _parsear_payload(body)
+    except Exception as e:
+        return _respuesta_error(400, "parse_error", str(e))
+
+    if not es_payload_valido(payload):
+        campos = obtener_campos_invalidos(payload)
+        return _respuesta_error(400, "validation_error", f"Campos invalidos: {campos}")
+
+    # Determinar si es pre o post vencimiento
+    hoy = date.today()
+    es_pre_vencimiento = payload.fecha_vencimiento > hoy
+
+    # Calcular precio con descuento (5%) solo si es pre-vencimiento
+    precio_con_descuento = round(payload.precio_renovacion * 0.95, 2)
+
+    # Construir correo usando plantilla
+    if es_pre_vencimiento:
+        asunto = f"Renovacion de su poliza de mantenimiento - {payload.equipo_nombre}"
+        cuerpo = f"""Estimado/a {payload.cliente_nombre},
+
+Le saludamos cordialmente de parte de CIME Power Systems.
+
+Nos comunicamos con usted para informarle que su poliza de mantenimiento para el equipo {payload.equipo_nombre} esta proxima a vencer el {payload.fecha_vencimiento.strftime('%d/%m/%Y')}.
+
+Para garantizar la continuidad de la cobertura de su equipo, le invitamos a renovar su poliza. El precio de renovacion anual es de ${payload.precio_renovacion:,.2f} MXN + IVA.
+
+Como beneficio por renovar antes de la fecha de vencimiento, le ofrecemos un descuento del 5% sobre el precio de renovacion, lo que resulta en un precio preferencial de ${precio_con_descuento:,.2f} MXN + IVA.
+
+Este descuento esta disponible unicamente si confirma su renovacion antes del {payload.fecha_vencimiento.strftime('%d/%m/%Y')}.
+
+Le gustaria proceder con la renovacion? Quedo a sus ordenes para enviarle la cotizacion formal con los datos para realizar el deposito.
+
+Atentamente,
+Equipo Comercial
+CIME Power Systems"""
+    else:
+        asunto = f"Su poliza de mantenimiento ha vencido - {payload.equipo_nombre}"
+        cuerpo = f"""Estimado/a {payload.cliente_nombre},
+
+Le saludamos cordialmente de parte de CIME Power Systems.
+
+Le informamos que su poliza de mantenimiento para el equipo {payload.equipo_nombre} vencio el {payload.fecha_vencimiento.strftime('%d/%m/%Y')}.
+
+Para mantener su equipo protegido y con el respaldo tecnico de nuestros especialistas, le invitamos a renovar su poliza. El precio de renovacion anual es de ${payload.precio_renovacion:,.2f} MXN + IVA.
+
+La renovacion le garantiza:
+- Mantenimiento preventivo programado
+- Soporte tecnico especializado
+- Tiempo de respuesta prioritario ante fallas
+
+Le gustaria proceder con la renovacion? Con gusto le envio la cotizacion formal con todos los detalles.
+
+Atentamente,
+Equipo Comercial
+CIME Power Systems"""
+
+    # Enviar via SES
+    try:
+        ses = boto3.client("ses", region_name="us-east-1")
+        response = ses.send_email(
+            Source="CIME Power Systems <agente-comercial@ses.codster.mx>",
+            Destination={"ToAddresses": [payload.cliente_email]},
+            Message={
+                "Subject": {"Data": asunto, "Charset": "UTF-8"},
+                "Body": {"Text": {"Data": cuerpo, "Charset": "UTF-8"}},
+            },
+        )
+        message_id = response["MessageId"]
+        logger.info(f"Correo enviado: {message_id} -> {payload.cliente_email}")
+    except Exception as e:
+        logger.error(f"Error enviando correo: {e}")
+        return _respuesta_error(500, "email_error", str(e))
+
+    return {
+        "statusCode": 200,
+        "headers": {"Content-Type": "application/json"},
+        "body": json.dumps({
+            "status": "email_sent",
+            "message_id": message_id,
+            "to": payload.cliente_email,
+            "subject": asunto,
+            "tipo": "pre_vencimiento" if es_pre_vencimiento else "post_vencimiento",
+        }, ensure_ascii=False),
+    }

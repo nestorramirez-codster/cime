@@ -1,93 +1,84 @@
-# Reglas Comerciales — CIME Power Systems
-## Renovación de Pólizas de Mantenimiento
+# Reglas Comerciales — CIME Power Systems (PPE Systems SA de CV)
 
----
+## Datos de la Empresa
 
-## 1. Ventana Comercial
+- **Razón Social:** PPE SYSTEMS SA DE CV
+- **RFC:** PSY2009023W0
+- **Correo de contacto comercial:** argenis.juarez@cimepowersystems.com.mx
 
-- **Definición:** Período de 30 días naturales antes de la fecha de vencimiento de la póliza.
-- **Inicio:** 30 días antes de `fecha_vencimiento`.
-- **Cierre:** Día de `fecha_vencimiento` (inclusive).
-- Durante la Ventana Comercial, el Agente inicia contacto proactivo con el cliente para gestionar la renovación.
-- Si la póliza ya venció (fecha actual > fecha_vencimiento), se aplica flujo de recuperación post-vencimiento.
+## Datos Bancarios para Depósitos
 
----
+- **Beneficiario:** PPE SYSTEMS SA DE CV
+- **Banco:** BBVA
+- **Moneda:** Nacional (MXN)
+- **No. de Cuenta:** 0115868165
+- **CLABE Interbancaria:** 012180001158681657
 
-## 2. Descuento Pre-Vencimiento
+## Política de Descuentos por Renovación
 
-- **Porcentaje:** 5% de descuento sobre el precio base de renovación.
-- **Condición:** El cliente confirma su interés de renovar ANTES de la fecha de vencimiento de su póliza.
-- **Cálculo:** `precio_final = round(precio_base * 0.95, 2)`
-- **Restricciones:**
-  - El Agente NO puede ofrecer descuentos distintos al 5%.
-  - El Agente NO puede negociar condiciones especiales, plazos diferidos ni extensiones de cobertura.
-  - El Agente NO puede acumular descuentos ni aplicar promociones adicionales.
-  - Cualquier solicitud de descuento diferente al 5% debe escalarse a un asesor humano.
-- **Vigencia del descuento:** Desde el momento del primer contacto hasta las 23:59 hrs (hora CDMX) del día de vencimiento de la póliza.
-- **Post-vencimiento:** El descuento del 5% NO aplica. El precio de renovación es el precio base completo sin descuento.
+Se aplican descuentos según la disposición del cliente para renovar:
 
----
+| Nivel | Porcentaje | Condición |
+|-------|-----------|-----------|
+| Nivel 1 | 3% | Disposición estándar del cliente |
+| Nivel 2 | 6% | Buena disposición del cliente |
+| Nivel 3 | 9% | Excelente disposición / renovación inmediata |
 
-## 3. Estados Válidos de Pipefy
+**Reglas importantes:**
+- Los únicos descuentos autorizados son 3%, 6% y 9%.
+- NO se pueden ofrecer descuentos distintos a estos tres niveles.
+- Cualquier solicitud de descuento fuera de estos valores debe escalarse a un asesor humano.
+- El descuento del 20% sobre Póliza 3 Visitas aplica ÚNICAMENTE cuando se vende junto con planta nueva.
 
-El seguimiento de cada póliza pasa por los siguientes estados (en orden lógico):
+## Ventana Comercial
 
-1. **Póliza detectada** — El Agente identificó la póliza dentro de la Ventana Comercial o vencida.
-2. **Contacto inicial enviado** — Se envió el primer correo al cliente.
-3. **Seguimiento en curso** — Se están enviando mensajes de seguimiento.
-4. **Cliente interesado** — El cliente expresó interés en renovar.
-5. **Depósito solicitado** — Se envió cotización con datos bancarios.
-6. **Comprobante recibido** — El cliente envió comprobante de pago.
-7. **En validación con tesorería** — Comprobante enviado a Tesorería para validación.
-8. **Renovación confirmada** — Tesorería validó el pago exitosamente.
-9. **Escalado a humano** — Caso derivado a un asesor comercial humano.
-10. **No renovada / sin respuesta** — El cliente no renovó o no respondió.
+- La ventana comercial para contactar al cliente inicia **30 días antes** de la fecha de vencimiento de la póliza.
+- Si la póliza ya venció, se contacta al cliente en modo "post-vencimiento" (sin descuento por anticipación).
 
----
+## Política de Precios
 
-## 4. Datos Bancarios
+- Todos los precios son **antes de IVA** (se agrega 16% de IVA al total).
+- Los precios publicados aplican para: CDMX y Área Metropolitana, Guadalajara y Área Metropolitana, y Cancún.
+- **Visita en falso:** se cobra $2,800 MXN + viáticos.
+- Los precios tienen vigencia hasta el **31 de marzo de 2026**.
 
-- Los datos bancarios para depósito SOLO se incluyen en correos cuando el Estado_Pipefy es:
-  - "Cliente interesado"
-  - "Depósito solicitado"
-- En CUALQUIER otro estado, el correo NO debe contener datos bancarios.
-- Datos bancarios de CIME Power Systems:
-  - Banco: BBVA México
-  - Beneficiario: CIME Power Systems S.A. de C.V.
-  - CLABE: 012180015678901234
-  - Referencia: Número de póliza del cliente
+## Tipos de Servicio
 
----
+1. **POLIZA 3 VISITAS** — Póliza anual con 3 visitas de mantenimiento preventivo
+2. **POLIZA 2 VISITAS** — Póliza anual con 2 visitas de mantenimiento preventivo
+3. **MANTENIMIENTO** — Servicio de mantenimiento individual (sin póliza)
+4. **VISITA DIAGNOSTICO** — Visita para diagnóstico del equipo
+5. **KIT** — Kit de refacciones de mantenimiento
+6. **ARRANQUE** — Servicio de puesta en marcha del equipo
 
-## 5. Formatos de Comprobante Aceptados
+## Categorías de Equipos
 
-- **Extensiones válidas:** PDF, JPG, PNG, JPEG (case-insensitive)
-- **Tamaño máximo:** 10 MB
-- Si el comprobante no cumple con formato o tamaño, se solicita reenvío al cliente indicando los formatos aceptados.
+1. **Air Cool** — Plantas residenciales/comerciales enfriadas por aire (7.5kW - 26kW)
+2. **Liquid Cool** — Plantas comerciales/industriales enfriadas por líquido (22kW - 150kW)
+3. **PLY Generac** — Plantas industriales línea PLY (20kW - 750kW)
+4. **Portátiles** — Plantas gasolina portátiles (servicio solo en sucursal)
+5. **Baterías** — Baterías de reemplazo para plantas
 
----
+## Condiciones para Plantas Portátiles
 
-## 6. Cotización de Renovación
+- Servicio exclusivamente en sucursal (no a domicilio).
+- No incluye envío ni recolección.
+- Plazo de recolección: 3 días hábiles tras notificación.
+- Cargo por almacenaje: $50.00 MXN + IVA por día natural a partir del día 4.
 
-- La cotización incluye obligatoriamente:
-  - Nombre del cliente
-  - Nombre del equipo cubierto
-  - Periodo de cobertura: 12 meses
-  - Precio base de renovación (sin descuento)
-  - Precio final (con descuento si aplica)
-  - Datos bancarios para depósito
-  - Fecha de vigencia de la cotización
-- La cotización SOLO se genera cuando el Estado_Pipefy es "Cliente interesado".
-- Si no existe precio en el catálogo para el tipo de equipo, se escala a un asesor humano.
+## Garantías Extendidas
 
----
+- Solo disponibles para equipos Resicom GENERAC Air Cool y Liquid Cool.
+- NO aplica para plantas DIESEL.
+- Debe venderse dentro de los primeros 20 días posteriores al arranque.
+- Requiere número de serie del equipo.
+- Descuento especial: 5% sobre póliza de mantenimiento por cada año contratado, si se adquiere junto con la garantía.
 
-## 7. Restricciones Absolutas del Agente
+## Condiciones de Escalamiento
 
-1. NO ofrecer descuentos distintos al 5%.
-2. NO negociar condiciones especiales.
-3. NO incluir datos bancarios fuera de los estados permitidos.
-4. NO ofrecer servicios fuera del alcance de la póliza de mantenimiento.
-5. NO realizar validación bancaria de comprobantes (solo recepción y reenvío a Tesorería).
-6. NO generar cotización si el Estado_Pipefy no es "Cliente interesado".
-7. NO contactar al cliente si el Estado_Pipefy es "Renovación confirmada" o "Escalado a humano".
+El agente debe escalar a un asesor humano cuando:
+- El cliente solicita un descuento distinto al 3%, 6% o 9%
+- El cliente solicita condiciones de pago especiales (plazos diferidos)
+- El cliente tiene una queja o inconformidad
+- El cliente solicita servicios fuera del alcance de la póliza
+- No se encuentra información suficiente en el catálogo para generar cotización

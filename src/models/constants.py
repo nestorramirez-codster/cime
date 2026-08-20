@@ -79,7 +79,10 @@ TAMANIO_MAXIMO_COMPROBANTE_BYTES: int = 10 * 1024 * 1024  # 10 MB
 # ---------------------------------------------------------------------------
 # Parámetros comerciales (Req 3, 4.3)
 # ---------------------------------------------------------------------------
-DESCUENTO_PRE_VENCIMIENTO: float = 0.05  # 5 %
+# Descuentos autorizados por disposición del cliente (3%, 6%, 9%)
+DESCUENTOS_AUTORIZADOS: tuple[float, ...] = (0.03, 0.06, 0.09)
+DESCUENTO_PRE_VENCIMIENTO: float = 0.03  # Descuento base por renovación anticipada (3%)
+DESCUENTO_MAXIMO: float = 0.09  # Máximo autorizado (9%)
 
 # Ventana comercial inicial: 30 días antes del vencimiento (configurable)
 VENTANA_COMERCIAL_DIAS: int = 30

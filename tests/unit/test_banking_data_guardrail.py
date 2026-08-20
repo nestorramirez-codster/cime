@@ -34,10 +34,10 @@ estados_con_bancarios = st.sampled_from(sorted(ESTADOS_CON_DATOS_BANCARIOS))
 # Cuerpos de correo que contienen datos bancarios
 cuerpos_con_datos_bancarios = st.sampled_from([
     f"Por favor deposite a: {DATOS_BANCARIOS_CIME}",
-    "CLABE: 012345678901234567 — Beneficiario: CIME Power Systems S.A. de C.V.",
-    "Datos para depósito:\nBanco: BBVA | Cuenta: 0123456789 | CLABE: 012345678901234567",
-    "La CLABE interbancaria es 012345678901234567. Favor de depositar a nombre de CIME Power Systems S.A. de C.V.",
-    "Cuenta: 0123456789 en BBVA a nombre de CIME Power Systems S.A. de C.V.",
+    "CLABE: 012180001158681657 — Beneficiario: PPE SYSTEMS SA DE CV",
+    "Datos para depósito:\nBanco: BBVA | Cuenta: 0115868165 | CLABE: 012180001158681657",
+    "La CLABE interbancaria es 012180001158681657. Favor de depositar a nombre de PPE SYSTEMS SA DE CV. RFC: PSY2009023W0",
+    "Cuenta: 0115868165 en BBVA a nombre de PPE SYSTEMS SA DE CV",
 ])
 
 # Session IDs generados aleatoriamente
@@ -145,13 +145,13 @@ class TestDatosBancariosDeteccion:
     def test_cuenta_10_digitos_detectada(self) -> None:
         """Cuenta de 10 dígitos con mención explícita debe ser detectada."""
         guardrail = PolicyGuardrail()
-        assert guardrail._contiene_datos_bancarios("Cuenta: 0123456789")
+        assert guardrail._contiene_datos_bancarios("Cuenta: 0115868165")
 
     def test_beneficiario_cime_detectado(self) -> None:
-        """Mención de beneficiario CIME debe ser detectada."""
+        """Mención de beneficiario PPE SYSTEMS debe ser detectada."""
         guardrail = PolicyGuardrail()
         assert guardrail._contiene_datos_bancarios(
-            "Beneficiario: CIME Power Systems S.A. de C.V."
+            "Beneficiario: PPE SYSTEMS SA DE CV"
         )
 
     def test_texto_sin_datos_bancarios(self) -> None:

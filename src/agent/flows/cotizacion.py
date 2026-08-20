@@ -44,8 +44,8 @@ logger = logging.getLogger(__name__)
 PERIODO_MESES: int = 12
 
 DATOS_BANCARIOS: str = (
-    "Banco: BBVA | Cuenta: 0123456789 | CLABE: 012345678901234567 "
-    "| Beneficiario: CIME Power Systems S.A. de C.V."
+    "Banco: BBVA | Cuenta: 0115868165 | CLABE: 012180001158681657 "
+    "| Beneficiario: PPE SYSTEMS SA DE CV | RFC: PSY2009023W0"
 )
 
 

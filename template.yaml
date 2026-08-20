@@ -151,6 +151,61 @@ Resources:
         Environment: !Ref Environment
 
   # ==========================================================================
+  # Lambda Function — Test Email (prueba directa de envío SES)
+  # ==========================================================================
+  TestEmailFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "cime-test-email-${Environment}"
+      Description: "Prueba: recibe payload y envia correo de contacto inicial via SES."
+      Handler: src.webhook.handler.test_email_handler
+      CodeUri: .
+      Timeout: 30
+      Environment:
+        Variables:
+          ENVIRONMENT: !Ref Environment
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action:
+                - ses:SendEmail
+                - ses:SendRawEmail
+              Resource: "*"
+      Events:
+        TestEmail:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref WebhookApi
+            Path: /test/email
+            Method: POST
+      Tags:
+        Project: cime-agente-comercial
+        Environment: !Ref Environment
+
+  # ==========================================================================
+  # Lambda Function — Tool: enviar_correo (Action Group del Bedrock Agent)
+  # ==========================================================================
+  EnviarCorreoFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "cime-tool-enviar-correo-${Environment}"
+      Description: "Tool del agente Bedrock: envia correos via SES"
+      Handler: src.tools.lambda_enviar_correo.handler
+      CodeUri: .
+      Timeout: 30
+      MemorySize: 128
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action:
+                - ses:SendEmail
+                - ses:SendRawEmail
+              Resource: "*"
+      Tags:
+        Project: cime-agente-comercial
+        Environment: !Ref Environment
+
+  # ==========================================================================
   # CloudWatch Log Group — Retención configurable
   # ==========================================================================
   WebhookLogGroup:
