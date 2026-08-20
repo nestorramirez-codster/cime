@@ -34,3 +34,7 @@ Thumbs.db
 
 # AWS
 .aws/
+
+# SAM build artifacts
+.aws-sam/
+cfn_events.json
