@@ -1,0 +1,82 @@
+# ===========================================================================
+# SAM CLI Configuration — Agente Comercial IA · CIME Power Systems
+#
+# Uso:
+#   sam deploy --config-env dev      (desarrollo)
+#   sam deploy --config-env staging  (pre-produccion)
+#   sam deploy --config-env prod     (produccion)
+# ===========================================================================
+
+version = 0.1
+
+# ---------------------------------------------------------------------------
+# Entorno: dev (desarrollo y pruebas)
+# ---------------------------------------------------------------------------
+[dev.deploy.parameters]
+stack_name = "cime-webhook-dev"
+resolve_s3 = true
+s3_prefix = "cime-webhook-dev"
+region = "us-east-1"
+confirm_changeset = true
+capabilities = "CAPABILITY_IAM CAPABILITY_NAMED_IAM"
+parameter_overrides = [
+    "Environment=dev",
+    "AgentCoreAgentId=4DXPKDJ3SI",
+    "AgentCoreAgentAliasId=O8VXCQJHUY",
+    "PrimaryRegion=us-east-1",
+    "LogRetentionDays=7"
+]
+tags = "Project=\"cime-agente-comercial\" Environment=\"dev\""
+
+[dev.build.parameters]
+use_container = false
+cached = true
+parallel = true
+
+# ---------------------------------------------------------------------------
+# Entorno: staging (pre-produccion)
+# ---------------------------------------------------------------------------
+[staging.deploy.parameters]
+stack_name = "cime-webhook-staging"
+resolve_s3 = true
+s3_prefix = "cime-webhook-staging"
+region = "us-east-1"
+confirm_changeset = true
+capabilities = "CAPABILITY_IAM CAPABILITY_NAMED_IAM"
+parameter_overrides = [
+    "Environment=staging",
+    "AgentCoreAgentId=4DXPKDJ3SI",
+    "AgentCoreAgentAliasId=O8VXCQJHUY",
+    "PrimaryRegion=us-east-1",
+    "LogRetentionDays=30"
+]
+tags = "Project=\"cime-agente-comercial\" Environment=\"staging\""
+
+[staging.build.parameters]
+use_container = false
+cached = true
+parallel = true
+
+# ---------------------------------------------------------------------------
+# Entorno: prod (produccion)
+# ---------------------------------------------------------------------------
+[prod.deploy.parameters]
+stack_name = "cime-webhook-prod"
+resolve_s3 = true
+s3_prefix = "cime-webhook-prod"
+region = "us-east-1"
+confirm_changeset = true
+capabilities = "CAPABILITY_IAM CAPABILITY_NAMED_IAM"
+parameter_overrides = [
+    "Environment=prod",
+    "AgentCoreAgentId=4DXPKDJ3SI",
+    "AgentCoreAgentAliasId=O8VXCQJHUY",
+    "PrimaryRegion=us-east-1",
+    "LogRetentionDays=90"
+]
+tags = "Project=\"cime-agente-comercial\" Environment=\"prod\""
+
+[prod.build.parameters]
+use_container = false
+cached = true
+parallel = true

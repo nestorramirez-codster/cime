@@ -114,7 +114,7 @@ Resources:
   KBDocumentsBucket:
     Type: AWS::S3::Bucket
     Properties:
-      BucketName: !Sub "cime-kb-documentos-${AWS::AccountId}"
+      BucketName: !Sub "cime-kb-docs-${AWS::AccountId}"
       VersioningConfiguration:
         Status: Enabled
       BucketEncryption:
@@ -134,36 +134,9 @@ Resources:
         - Key: Purpose
           Value: knowledge-base-documents
 
-  # Política de bucket: solo el rol del agente puede acceder
-  KBDocumentsBucketPolicy:
-    Type: AWS::S3::BucketPolicy
-    Properties:
-      Bucket: !Ref KBDocumentsBucket
-      PolicyDocument:
-        Version: "2012-10-17"
-        Statement:
-          - Sid: AllowAgentRoleOnly
-            Effect: Allow
-            Principal:
-              AWS: !GetAtt AgentExecutionRole.Arn
-            Action:
-              - s3:GetObject
-              - s3:ListBucket
-            Resource:
-              - !GetAtt KBDocumentsBucket.Arn
-              - !Sub "${KBDocumentsBucket.Arn}/*"
-          - Sid: DenyAllOtherAccess
-            Effect: Deny
-            Principal: "*"
-            Action: s3:*
-            Resource:
-              - !GetAtt KBDocumentsBucket.Arn
-              - !Sub "${KBDocumentsBucket.Arn}/*"
-            Condition:
-              StringNotEquals:
-                aws:PrincipalArn:
-                  - !GetAtt AgentExecutionRole.Arn
-                  - !Sub "arn:aws:iam::${AWS::AccountId}:root"
+  # Nota: El acceso al bucket KB se controla exclusivamente via IAM policies
+  # en el AgentExecutionRole (principio de mínimo privilegio).
+  # No se usa bucket policy restrictiva para evitar bloqueos administrativos.
 
   # ===========================================================================
   # IAM — Rol de Ejecución del Agente (Req 12.1)
@@ -292,8 +265,10 @@ Resources:
     Type: AWS::SES::ConfigurationSet
     Properties:
       Name: !Sub "cime-agent-tracking-${Environment}"
-      TrackingOptions:
-        CustomRedirectDomain: !Ref SESVerifiedDomain
+      # TrackingOptions requiere dominio verificado en SES.
+      # Descomentar cuando el dominio esté verificado:
+      # TrackingOptions:
+      #   CustomRedirectDomain: !Ref SESVerifiedDomain
       ReputationOptions:
         ReputationMetricsEnabled: true
       SendingOptions:
@@ -332,78 +307,42 @@ Resources:
     Type: AWS::SecretsManager::Secret
     Properties:
       Name: !Sub "cime/pipefy/api-token"
-      Description: "Token Bearer para autenticación con Pipefy GraphQL API"
-      SecretString: !Sub |
-        {
-          "token": "PLACEHOLDER-CAMBIAR-ANTES-DE-PRODUCCION"
-        }
+      Description: "Token Bearer para autenticacion con Pipefy GraphQL API"
+      SecretString: |
+        {"token": "PLACEHOLDER-CAMBIAR-ANTES-DE-PRODUCCION"}
       Tags:
         - Key: Project
           Value: cime-agente-comercial
         - Key: Environment
           Value: !Ref Environment
-        - Key: Tool
-          Value: consultar_pipefy,actualizar_pipefy
-
-  SecretPipefyRotation:
-    Type: AWS::SecretsManager::RotationSchedule
-    Properties:
-      SecretId: !Ref SecretPipefyToken
-      RotationRules:
-        AutomaticallyAfterDays: 90
 
   # Secreto 2: SES SMTP Credentials
   SecretSESCredentials:
     Type: AWS::SecretsManager::Secret
     Properties:
       Name: !Sub "cime/ses/smtp-credentials"
-      Description: "Credenciales SMTP de Amazon SES para envío de correos"
+      Description: "Credenciales SMTP de Amazon SES para envio de correos"
       SecretString: !Sub |
-        {
-          "smtp_username": "PLACEHOLDER-CAMBIAR",
-          "smtp_password": "PLACEHOLDER-CAMBIAR",
-          "sender_email": "renovaciones@${SESVerifiedDomain}"
-        }
+        {"smtp_username": "PLACEHOLDER-CAMBIAR", "smtp_password": "PLACEHOLDER-CAMBIAR", "sender_email": "renovaciones@${SESVerifiedDomain}"}
       Tags:
         - Key: Project
           Value: cime-agente-comercial
         - Key: Environment
           Value: !Ref Environment
-        - Key: Tool
-          Value: enviar_correo
-
-  SecretSESRotation:
-    Type: AWS::SecretsManager::RotationSchedule
-    Properties:
-      SecretId: !Ref SecretSESCredentials
-      RotationRules:
-        AutomaticallyAfterDays: 90
 
   # Secreto 3: Tesorería Endpoint Key
   SecretTesoreriaKey:
     Type: AWS::SecretsManager::Secret
     Properties:
       Name: !Sub "cime/tesoreria/endpoint-key"
-      Description: "API key y URL del endpoint interno de Tesorería"
+      Description: "API key y URL del endpoint interno de Tesoreria"
       SecretString: !Sub |
-        {
-          "url": "https://tesoreria-api.internal.${SESVerifiedDomain}/v1/notificaciones",
-          "api_key": "PLACEHOLDER-CAMBIAR-ANTES-DE-PRODUCCION"
-        }
+        {"url": "https://tesoreria-api.internal.${SESVerifiedDomain}/v1/notificaciones", "api_key": "PLACEHOLDER-CAMBIAR-ANTES-DE-PRODUCCION"}
       Tags:
         - Key: Project
           Value: cime-agente-comercial
         - Key: Environment
           Value: !Ref Environment
-        - Key: Tool
-          Value: notificar_tesoreria
-
-  SecretTesoreriaRotation:
-    Type: AWS::SecretsManager::RotationSchedule
-    Properties:
-      SecretId: !Ref SecretTesoreriaKey
-      RotationRules:
-        AutomaticallyAfterDays: 90
 
   # Secreto 4: Slack Webhook para Escalamientos
   SecretSlackWebhook:
@@ -411,24 +350,13 @@ Resources:
     Properties:
       Name: !Sub "cime/comercial/slack-webhook"
       Description: "URL del webhook de Slack para notificaciones de escalamiento"
-      SecretString: !Sub |
-        {
-          "webhook_url": "https://hooks.slack.com/services/PLACEHOLDER/CAMBIAR/ANTES-PRODUCCION"
-        }
+      SecretString: |
+        {"webhook_url": "https://hooks.slack.com/services/PLACEHOLDER/CAMBIAR/ANTES-PRODUCCION"}
       Tags:
         - Key: Project
           Value: cime-agente-comercial
         - Key: Environment
           Value: !Ref Environment
-        - Key: Tool
-          Value: escalar_humano
-
-  SecretSlackRotation:
-    Type: AWS::SecretsManager::RotationSchedule
-    Properties:
-      SecretId: !Ref SecretSlackWebhook
-      RotationRules:
-        AutomaticallyAfterDays: 90
 
   # ===========================================================================
   # CloudWatch — Log Groups para Observabilidad (Req 10.1)

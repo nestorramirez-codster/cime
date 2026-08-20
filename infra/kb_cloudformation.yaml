@@ -94,19 +94,17 @@ Resources:
     Type: AWS::Bedrock::KnowledgeBase
     Properties:
       Name: !Sub "cime-kb-renovaciones-${Environment}"
-      Description: >
-        Knowledge Base para el Agente Comercial IA de CIME Power Systems.
-        Contiene reglas comerciales, catálogo de precios, plantillas de mensajes
-        y criterios de escalamiento para la gestión de renovaciones de pólizas.
+      Description: "KB del Agente Comercial IA de CIME: reglas, precios, plantillas y escalamiento."
       RoleArn: !GetAtt KBServiceRole.Arn
       KnowledgeBaseConfiguration:
         Type: VECTOR
         VectorKnowledgeBaseConfiguration:
           EmbeddingModelArn: !Sub "arn:aws:bedrock:${PrimaryRegion}::foundation-model/amazon.titan-embed-text-v2:0"
       StorageConfiguration:
-        Type: S3
-        S3Configuration:
-          BucketArn: !Sub "arn:aws:s3:::${KBBucketName}"
+        Type: S3_VECTORS
+        S3VectorsConfiguration:
+          VectorBucketArn: !Sub "arn:aws:s3:::${KBBucketName}"
+          IndexName: !Sub "cime-kb-index-${Environment}"
       Tags:
         Project: cime-agente-comercial
         Environment: !Ref Environment
@@ -119,10 +117,7 @@ Resources:
     Properties:
       KnowledgeBaseId: !GetAtt CIMEKnowledgeBase.KnowledgeBaseId
       Name: !Sub "cime-kb-s3-source-${Environment}"
-      Description: >
-        Data source S3 con los 4 documentos de la KB:
-        reglas_comerciales.md, catalogo_precios.json,
-        plantillas_mensajes.md, criterios_escalamiento.md
+      Description: "Data source S3 con documentos KB: reglas, precios, plantillas, escalamiento."
       DataSourceConfiguration:
         Type: S3
         S3Configuration:

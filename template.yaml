@@ -1,0 +1,189 @@
+# ===========================================================================
+# AWS SAM Template — Webhook Lambda + API Gateway
+# Agente Comercial IA — CIME Power Systems
+#
+# Despliega:
+#   - Función Lambda (Python 3.11) con el webhook handler
+#   - API Gateway HTTP (v2) con ruta POST /webhook/activar
+#   - Rol IAM para invocar Bedrock Agent Runtime
+#   - Log Group de CloudWatch con retención configurable
+#
+# Dependencias:
+#   - Stack base_infrastructure.yaml ya desplegado (DynamoDB, S3, Secrets, SES)
+#   - Stack agentcore_runtime_config.yaml ya desplegado (Agent ID y Alias ID)
+#
+# Deploy:
+#   sam build && sam deploy --config-env dev
+# ===========================================================================
+
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  Webhook Lambda + API Gateway para el Agente Comercial IA de CIME Power Systems.
+  Recibe activaciones de Zapier y las enruta al AgentCore Runtime.
+
+# ---------------------------------------------------------------------------
+# Globals — Configuración compartida entre funciones
+# ---------------------------------------------------------------------------
+Globals:
+  Function:
+    Timeout: 30
+    MemorySize: 256
+    Runtime: python3.12
+    Architectures:
+      - x86_64
+    Environment:
+      Variables:
+        POWERTOOLS_SERVICE_NAME: cime-agente-comercial
+        LOG_LEVEL: INFO
+
+# ---------------------------------------------------------------------------
+# Parameters
+# ---------------------------------------------------------------------------
+Parameters:
+  Environment:
+    Type: String
+    Default: dev
+    AllowedValues: [dev, staging, prod]
+    Description: Entorno de despliegue
+
+  AgentCoreAgentId:
+    Type: String
+    Description: >
+      ID del Bedrock Agent desplegado en agentcore_runtime_config stack.
+      Ejemplo: ABCDEFGHIJ
+
+  AgentCoreAgentAliasId:
+    Type: String
+    Description: >
+      ID del Agent Alias (live) desplegado en agentcore_runtime_config stack.
+      Ejemplo: TSTALIASID
+
+  PrimaryRegion:
+    Type: String
+    Default: us-east-1
+    Description: Región donde está desplegado el Bedrock Agent
+
+  LogRetentionDays:
+    Type: Number
+    Default: 30
+    AllowedValues: [7, 14, 30, 60, 90, 120, 180, 365]
+    Description: Días de retención de logs en CloudWatch
+
+# ---------------------------------------------------------------------------
+# Resources
+# ---------------------------------------------------------------------------
+Resources:
+
+  # ==========================================================================
+  # API Gateway HTTP (v2) — Punto de entrada para Zapier
+  # ==========================================================================
+  WebhookApi:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      StageName: !Ref Environment
+      Description: !Sub "API del Agente Comercial IA - ${Environment}"
+      CorsConfiguration:
+        AllowMethods:
+          - POST
+          - OPTIONS
+        AllowHeaders:
+          - Content-Type
+          - Authorization
+        AllowOrigins:
+          - "https://hooks.zapier.com"
+          - "https://zapier.com"
+      Tags:
+        Project: cime-agente-comercial
+        Environment: !Ref Environment
+
+  # ==========================================================================
+  # Lambda Function — Webhook Handler
+  # ==========================================================================
+  WebhookFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "cime-webhook-activar-${Environment}"
+      Description: >
+        Recibe HTTP POST de Zapier con ActivationPayload, valida,
+        genera session_id e invoca AgentCore Runtime de forma asíncrona.
+      Handler: src.webhook.handler.webhook_handler
+      CodeUri: .
+      Environment:
+        Variables:
+          AGENT_EXECUTION_MODE: prod
+          AGENTCORE_AGENT_ID: !Ref AgentCoreAgentId
+          AGENTCORE_AGENT_ALIAS_ID: !Ref AgentCoreAgentAliasId
+          AWS_REGION_OVERRIDE: !Ref PrimaryRegion
+          ENVIRONMENT: !Ref Environment
+      Policies:
+        # Invocar el Bedrock Agent Runtime
+        - Statement:
+            - Effect: Allow
+              Action:
+                - bedrock:InvokeAgent
+              Resource:
+                - !Sub "arn:aws:bedrock:${PrimaryRegion}:${AWS::AccountId}:agent/${AgentCoreAgentId}"
+                - !Sub "arn:aws:bedrock:${PrimaryRegion}:${AWS::AccountId}:agent-alias/${AgentCoreAgentId}/${AgentCoreAgentAliasId}"
+        # Logs de CloudWatch
+        - Statement:
+            - Effect: Allow
+              Action:
+                - logs:CreateLogGroup
+                - logs:CreateLogStream
+                - logs:PutLogEvents
+              Resource: !Sub "arn:aws:logs:${PrimaryRegion}:${AWS::AccountId}:log-group:/aws/lambda/cime-webhook-activar-${Environment}:*"
+      Events:
+        ActivarWebhook:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref WebhookApi
+            Path: /webhook/activar
+            Method: POST
+        HealthCheck:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref WebhookApi
+            Path: /health
+            Method: GET
+      Tags:
+        Project: cime-agente-comercial
+        Environment: !Ref Environment
+
+  # ==========================================================================
+  # CloudWatch Log Group — Retención configurable
+  # ==========================================================================
+  WebhookLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/cime-webhook-activar-${Environment}"
+      RetentionInDays: !Ref LogRetentionDays
+      Tags:
+        - Key: Project
+          Value: cime-agente-comercial
+        - Key: Environment
+          Value: !Ref Environment
+
+# ---------------------------------------------------------------------------
+# Outputs — URLs y ARNs para referencia
+# ---------------------------------------------------------------------------
+Outputs:
+  WebhookApiUrl:
+    Description: URL base del API Gateway (usar para configurar Zapier)
+    Value: !Sub "https://${WebhookApi}.execute-api.${AWS::Region}.amazonaws.com/${Environment}"
+
+  WebhookEndpoint:
+    Description: URL completa del endpoint de activación (copiar a Zapier)
+    Value: !Sub "https://${WebhookApi}.execute-api.${AWS::Region}.amazonaws.com/${Environment}/webhook/activar"
+
+  HealthCheckEndpoint:
+    Description: URL del health check
+    Value: !Sub "https://${WebhookApi}.execute-api.${AWS::Region}.amazonaws.com/${Environment}/health"
+
+  WebhookFunctionArn:
+    Description: ARN de la función Lambda del webhook
+    Value: !GetAtt WebhookFunction.Arn
+
+  WebhookFunctionName:
+    Description: Nombre de la función Lambda
+    Value: !Ref WebhookFunction

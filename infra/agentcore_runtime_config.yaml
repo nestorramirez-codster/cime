@@ -2,23 +2,20 @@
 # CIME Power Systems
 #
 # Recursos creados:
-#   - AgentCore Runtime (serverless) con timeout de 900s
-#   - Asociación del rol IAM del agente al Runtime
-#   - Configuración de auto-scaling gestionado por AgentCore
-#   - Asociación de Knowledge Base al agente
+#   - Bedrock Agent con instrucciones completas (sin KB externa)
+#   - IAM Role para el agente
+#   - Agent Alias para invocacion desde webhook
 #
 # Requisitos: 12.1, 12.6, 12.7
 #
 # NOTA: Amazon Bedrock AgentCore es un servicio relativamente nuevo.
-# Este template documenta la configuración requerida. Algunos recursos
-# pueden requerir configuración via consola o SDK si el tipo CloudFormation
-# aún no está disponible en la región seleccionada.
+# Algunos recursos pueden requerir configuracion via consola o SDK.
 
 AWSTemplateFormatVersion: "2010-09-09"
 Description: >
-  AgentCore Runtime para el Agente Comercial IA de CIME Power Systems.
-  Configura el entorno de ejecución serverless con timeout de 900s,
-  auto-scaling gestionado y asociación del rol IAM del agente.
+  Bedrock Agent para el Agente Comercial IA de CIME Power Systems.
+  Incluye instrucciones completas con reglas comerciales, plantillas
+  y criterios de escalamiento embebidos directamente.
 
 Parameters:
   Environment:
@@ -31,42 +28,23 @@ Parameters:
     Type: String
     Default: us-east-1
     AllowedValues: [us-east-1, us-west-2]
-    Description: >
-      Región AWS para el Runtime. us-east-1 es la región preferida;
-      us-west-2 como fallback si AgentCore no está disponible en us-east-1.
+    Description: Region AWS para el Runtime.
 
   FoundationModelId:
     Type: String
-    Default: anthropic.claude-sonnet-3.5-v1
-    Description: ID del modelo fundacional de Amazon Bedrock (Claude Sonnet 3.5)
-
-  KnowledgeBaseId:
-    Type: String
-    Description: ID de la Knowledge Base de Bedrock (exportado desde kb_cloudformation stack)
-
-  AgentRoleArn:
-    Type: String
-    Description: ARN del rol IAM del agente (creado en tarea 2)
+    Default: anthropic.claude-sonnet-4-20250514
+    Description: ID del modelo fundacional de Amazon Bedrock
 
   SessionTimeoutSeconds:
     Type: Number
     Default: 900
     MinValue: 60
     MaxValue: 3600
-    Description: >
-      Timeout máximo por sesión en segundos. Valor: 900s (15 minutos).
-      Después de este tiempo, la sesión se cierra automáticamente.
-
-  MaxColdStartSeconds:
-    Type: Number
-    Default: 30
-    Description: >
-      Cold start máximo aceptable en segundos (Req 12.6).
-      El Runtime debe responder al primer webhook en este plazo.
+    Description: Timeout maximo por sesion en segundos (15 minutos).
 
 Resources:
   # --------------------------------------------------------------------------
-  # IAM Role para el AgentCore Runtime (ejecución del agente)
+  # IAM Role para el Bedrock Agent
   # --------------------------------------------------------------------------
   AgentCoreExecutionRole:
     Type: AWS::IAM::Role
@@ -83,7 +61,6 @@ Resources:
               StringEquals:
                 aws:SourceAccount: !Ref AWS::AccountId
       Policies:
-        # Invocar modelos fundacionales de Bedrock
         - PolicyName: InvokeBedrockModels
           PolicyDocument:
             Version: "2012-10-17"
@@ -94,18 +71,6 @@ Resources:
                   - bedrock:InvokeModelWithResponseStream
                 Resource:
                   - !Sub "arn:aws:bedrock:${PrimaryRegion}::foundation-model/${FoundationModelId}"
-        # Acceso a Knowledge Base
-        - PolicyName: AccessKnowledgeBase
-          PolicyDocument:
-            Version: "2012-10-17"
-            Statement:
-              - Effect: Allow
-                Action:
-                  - bedrock:Retrieve
-                  - bedrock:RetrieveAndGenerate
-                Resource:
-                  - !Sub "arn:aws:bedrock:${PrimaryRegion}:${AWS::AccountId}:knowledge-base/${KnowledgeBaseId}"
-        # Acceso a DynamoDB para memoria de corto plazo
         - PolicyName: AccessDynamoDBMemory
           PolicyDocument:
             Version: "2012-10-17"
@@ -120,7 +85,6 @@ Resources:
                 Resource:
                   - !Sub "arn:aws:dynamodb:${PrimaryRegion}:${AWS::AccountId}:table/cime-agent-sessions-${Environment}"
                   - !Sub "arn:aws:dynamodb:${PrimaryRegion}:${AWS::AccountId}:table/cime-agent-sessions-${Environment}/index/*"
-        # Acceso a S3 para memoria de largo plazo
         - PolicyName: AccessS3Memory
           PolicyDocument:
             Version: "2012-10-17"
@@ -133,7 +97,6 @@ Resources:
                 Resource:
                   - !Sub "arn:aws:s3:::cime-agent-memory-${AWS::AccountId}"
                   - !Sub "arn:aws:s3:::cime-agent-memory-${AWS::AccountId}/*"
-        # Acceso a Secrets Manager para credenciales de tools
         - PolicyName: AccessSecretsManager
           PolicyDocument:
             Version: "2012-10-17"
@@ -143,7 +106,6 @@ Resources:
                   - secretsmanager:GetSecretValue
                 Resource:
                   - !Sub "arn:aws:secretsmanager:${PrimaryRegion}:${AWS::AccountId}:secret:cime/*"
-        # Envío de correos via SES
         - PolicyName: SendEmailSES
           PolicyDocument:
             Version: "2012-10-17"
@@ -154,7 +116,6 @@ Resources:
                   - ses:SendRawEmail
                 Resource:
                   - !Sub "arn:aws:ses:${PrimaryRegion}:${AWS::AccountId}:identity/*"
-        # Observabilidad: CloudWatch Logs y Metrics
         - PolicyName: CloudWatchObservability
           PolicyDocument:
             Version: "2012-10-17"
@@ -175,49 +136,119 @@ Resources:
           Value: !Ref Environment
 
   # --------------------------------------------------------------------------
-  # Amazon Bedrock Agent (AgentCore Runtime)
+  # Amazon Bedrock Agent
   # --------------------------------------------------------------------------
   CIMEBedrockAgent:
     Type: AWS::Bedrock::Agent
     Properties:
       AgentName: !Sub "cime-agente-comercial-${Environment}"
-      Description: >
-        Agente Comercial IA para renovación de pólizas de mantenimiento.
-        Opera sobre AgentCore Runtime con Strands Agents y Claude Sonnet 3.5.
+      Description: "Agente Comercial IA para renovacion de polizas de mantenimiento CIME."
       AgentResourceRoleArn: !GetAtt AgentCoreExecutionRole.Arn
       FoundationModel: !Ref FoundationModelId
       IdleSessionTTLInSeconds: !Ref SessionTimeoutSeconds
       Instruction: |
-        Eres un asesor comercial profesional de CIME Power Systems, empresa especializada en
-        sistemas de energía ininterrumpida (UPS) y mantenimiento de equipos eléctricos.
+        Eres un asesor comercial profesional de CIME Power Systems (PPE Systems SA de CV), empresa especializada en plantas de luz, UPS y mantenimiento de equipos electricos.
 
-        Tu único objetivo es gestionar la renovación de pólizas de mantenimiento de los clientes.
+        Tu UNICO objetivo es gestionar la renovacion de polizas de mantenimiento de los clientes.
 
-        IDENTIDAD Y TONO:
-        - Idioma: Español mexicano formal pero cordial
-        - Tono: Profesional, orientado a soluciones, empático con las necesidades del cliente
-        - Nunca uses tecnicismos innecesarios; explica en lenguaje de negocios claro
+        === IDENTIDAD Y TONO ===
+        - Idioma: Espanol mexicano formal pero cordial
+        - Tono: Profesional, orientado a soluciones, empatico
+        - Nunca uses tecnicismos innecesarios
 
-        RESTRICCIONES ABSOLUTAS (no negociables):
-        1. El único descuento autorizado es el 5% por pre-vencimiento. No ofrezcas ningún otro porcentaje.
-        2. Los datos bancarios SOLO se incluyen cuando el estado de la póliza es "Cliente interesado" o "Depósito solicitado".
-        3. No ofrezcas diagnóstico técnico, venta de refacciones, soporte técnico ni modificaciones de equipos.
-        4. Si el cliente solicita hablar con un asesor humano, escala INMEDIATAMENTE sin intentar retenerlo.
-        5. Todos los precios y condiciones deben provenir de la Knowledge Base. Nunca inventes precios.
-        6. Si la Knowledge Base no tiene respuesta con score >= 0.7, escala al equipo comercial.
+        === DATOS DE LA EMPRESA ===
+        - Razon Social: PPE SYSTEMS SA DE CV
+        - RFC: PSY2009023W0
+        - Banco: BBVA
+        - No. Cuenta: 0115868165
+        - CLABE: 012180001158681657
+        - Contacto comercial: argenis.juarez@cimepowersystems.com.mx
+        - IMPORTANTE: Los datos bancarios SOLO se incluyen cuando el estado es "Cliente interesado" o "Deposito solicitado".
 
-        FLUJO GENERAL:
-        1. Validar payload → Consultar estado Pipefy → Enviar contacto inicial
-        2. Procesar respuesta del cliente → Generar cotización si hay interés
-        3. Recibir comprobante → Notificar Tesorería
-        4. Escalar en casos de negociación especial, inconformidad o solicitud de asesor humano
+        === POLITICA DE DESCUENTOS ===
+        - Nivel 1: 3% (disposicion estandar)
+        - Nivel 2: 6% (buena disposicion)
+        - Nivel 3: 9% (excelente disposicion / renovacion inmediata)
+        - NO se pueden ofrecer descuentos distintos a 3%, 6% o 9%.
+        - Descuento 20% sobre Poliza 3 Visitas SOLO al vender junto con planta nueva.
+        - Cualquier solicitud fuera de estos valores: ESCALAR a asesor humano.
 
-        Mantén siempre el contexto completo de la conversación para personalizar cada mensaje.
-      KnowledgeBaseConfigurations:
-        - KnowledgeBaseId: !Ref KnowledgeBaseId
-          Description: >
-            Base de conocimiento con reglas comerciales, catálogo de precios,
-            plantillas de mensajes y criterios de escalamiento de CIME.
+        === VENTANA COMERCIAL ===
+        - Inicia 30 dias antes de la fecha de vencimiento.
+        - Post-vencimiento: seguimiento sin descuento por anticipacion.
+
+        === POLITICA DE PRECIOS ===
+        - Precios antes de IVA (agregar 16%).
+        - Aplican para CDMX, Guadalajara y Cancun (areas metropolitanas).
+        - Visita en falso: $2,800 MXN + viaticos.
+        - El precio_renovacion viene en el payload de Zapier. NUNCA inventes precios.
+
+        === RESTRICCIONES ABSOLUTAS ===
+        1. Datos bancarios SOLO en estado "Cliente interesado" o "Deposito solicitado".
+        2. No ofrezcas diagnostico tecnico, venta de refacciones, soporte tecnico ni modificaciones.
+        3. Si el cliente pide hablar con un humano, escala INMEDIATAMENTE.
+        4. Nunca inventes precios ni condiciones.
+
+        === FLUJO GENERAL ===
+        1. Validar payload -> Consultar estado Pipefy -> Enviar contacto inicial
+        2. Procesar respuesta -> Generar cotizacion si hay interes
+        3. Recibir comprobante -> Notificar Tesoreria
+        4. Escalar si: negociacion especial, queja, solicitud de humano, facturacion
+
+        === CRITERIOS DE ESCALAMIENTO (invocar escalar_humano) ===
+        Escalar INMEDIATAMENTE cuando:
+        1. Cliente solicita hablar con persona/asesor/humano
+        2. Descuento distinto a 3%/6%/9% solicitado
+        3. Pagos diferidos, meses sin intereses, parcialidades
+        4. Extension de cobertura >12 meses
+        5. Inclusion de equipos adicionales
+        6. Solicitudes de facturacion, RFC, CFDI, nota de credito
+        7. Quejas, inconformidades o tono agresivo sostenido
+        8. Dudas tecnicas que no puedas responder con certeza
+        9. Discrepancia >1% entre precio del payload y datos de Pipefy
+        10. Agotamiento de reintentos de cualquier tool (circuit breaker)
+
+        Tras escalar: actualizar Pipefy a "Escalado a humano" y enviar plantilla de confirmacion al cliente.
+
+        === PLANTILLAS DE MENSAJE ===
+
+        PRE-VENCIMIENTO (contacto inicial):
+        Asunto: Renovacion de su poliza de mantenimiento - {equipo_nombre}
+        Informar fecha de vencimiento, precio de renovacion, y ofrecer descuento por anticipacion.
+
+        POST-VENCIMIENTO (contacto inicial):
+        Asunto: Su poliza de mantenimiento ha vencido - {equipo_nombre}
+        Informar que vencio, invitar a renovar, mencionar beneficios (mantenimiento preventivo, soporte, tiempo de respuesta prioritario).
+
+        DESCUENTO (segundo intento):
+        Asunto: Oferta especial: descuento en su renovacion - {equipo_nombre}
+        Recordar descuento disponible, mostrar precio base vs precio con descuento, fecha limite.
+
+        ENCUESTA (cliente rechaza):
+        Asunto: Su opinion nos importa - CIME Power Systems
+        Preguntar motivo: presupuesto, ya no tiene equipo, otro proveedor, insatisfaccion, otro.
+
+        ESCALAMIENTO:
+        Asunto: Un asesor especializado le contactara - CIME Power Systems
+        Informar que un asesor contactara en max 24 horas habiles.
+
+        CONFIRMACION COMPROBANTE:
+        Asunto: Comprobante recibido - Renovacion {equipo_nombre}
+        Confirmar recepcion, informar que Tesoreria validara en 1-3 dias habiles.
+
+        === ESTADOS VALIDOS EN PIPEFY ===
+        1. Poliza detectada
+        2. Contacto inicial enviado
+        3. Seguimiento en curso
+        4. Cliente interesado
+        5. Deposito solicitado
+        6. Comprobante recibido
+        7. En validacion con tesoreria
+        8. Renovacion confirmada
+        9. Escalado a humano
+        10. No renovada / sin respuesta
+
+        Manten siempre el contexto completo de la conversacion para personalizar cada mensaje.
       Tags:
         Project: cime-agente-comercial
         Environment: !Ref Environment
@@ -230,9 +261,7 @@ Resources:
     Properties:
       AgentId: !GetAtt CIMEBedrockAgent.AgentId
       AgentAliasName: !Sub "live-${Environment}"
-      Description: >
-        Alias activo del Agente Comercial IA para el entorno ${Environment}.
-        Este alias es el que se invoca desde el webhook de Zapier.
+      Description: "Alias activo del Agente Comercial IA."
       Tags:
         Project: cime-agente-comercial
         Environment: !Ref Environment
@@ -257,13 +286,13 @@ Outputs:
       Name: !Sub "${AWS::StackName}-ExecutionRoleArn"
 
   RuntimeRegion:
-    Description: Región donde se desplegó el Runtime
+    Description: Region donde se desplego el Runtime
     Value: !Ref PrimaryRegion
     Export:
       Name: !Sub "${AWS::StackName}-Region"
 
   SessionTimeout:
-    Description: Timeout de sesión configurado (segundos)
+    Description: Timeout de sesion configurado (segundos)
     Value: !Ref SessionTimeoutSeconds
     Export:
       Name: !Sub "${AWS::StackName}-SessionTimeout"
