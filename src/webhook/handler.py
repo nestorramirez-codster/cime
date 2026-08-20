@@ -255,8 +255,9 @@ def webhook_handler(event: dict[str, Any], context: Any = None) -> dict[str, Any
     # --- Paso 5: Invocar AgentCore Runtime o modo mock ---
     try:
         if EXECUTION_MODE == "prod":
-            # Fire-and-forget: responder a Zapier inmediatamente (Req 12.6)
-            _invocar_agentcore_runtime_async(payload, session_id)
+            # Invocación síncrona al agente (responde en ~5-10s, dentro del
+            # timeout de 30s de Lambda y Zapier)
+            _invocar_agentcore_runtime(payload, session_id)
         else:
             # Modo mock: invocar iniciar_sesion() directamente (síncrono)
             from src.agent.session import iniciar_sesion
