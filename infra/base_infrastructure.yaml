@@ -1,0 +1,522 @@
+# ===========================================================================
+# CloudFormation — Infraestructura Base del Agente Comercial IA
+# CIME Power Systems
+#
+# Recursos creados:
+#   - DynamoDB: tabla cime-agent-sessions (PK session_id, TTL expiry_time)
+#   - S3: bucket memoria de largo plazo (cime-agent-memory-{account})
+#   - S3: bucket documentos KB (cime-kb-documentos-{account})
+#   - IAM: rol de ejecución del agente con políticas mínimas
+#   - SES: configuration set para tracking (bounce/complaint)
+#   - Secrets Manager: 4 secretos con rotación automática de 90 días
+#
+# Requisitos: 2.1, 5.3, 8.1, 8.3, 9.3, 10.1, 11.3, 12.1, 12.3, 12.7
+# ===========================================================================
+
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >
+  Infraestructura base para el Agente Comercial IA de CIME Power Systems.
+  Incluye DynamoDB, S3, IAM, SES y Secrets Manager.
+
+Parameters:
+  Environment:
+    Type: String
+    Default: dev
+    AllowedValues: [dev, staging, prod]
+    Description: Entorno de despliegue
+
+  PrimaryRegion:
+    Type: String
+    Default: us-east-1
+    AllowedValues: [us-east-1, us-west-2]
+    Description: Región principal de despliegue
+
+  SESVerifiedDomain:
+    Type: String
+    Default: cimepowersystems.com
+    Description: Dominio verificado en Amazon SES para envío de correos
+
+# ===========================================================================
+# DynamoDB — Memoria de corto plazo (Req 8.1, 12.7)
+# ===========================================================================
+Resources:
+
+  AgentSessionsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub "cime-agent-sessions-${Environment}"
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: session_id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: session_id
+          KeyType: HASH
+      TimeToLiveSpecification:
+        AttributeName: expiry_time
+        Enabled: true
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+      SSESpecification:
+        SSEEnabled: true
+        SSEType: KMS
+      Tags:
+        - Key: Project
+          Value: cime-agente-comercial
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Purpose
+          Value: short-term-memory
+
+
+  # ===========================================================================
+  # S3 — Bucket de Memoria de Largo Plazo (Req 8.3)
+  # ===========================================================================
+
+  AgentMemoryBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "cime-agent-memory-${AWS::AccountId}"
+      VersioningConfiguration:
+        Status: Enabled
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      LifecycleConfiguration:
+        Rules:
+          - Id: TransitionToIA
+            Status: Enabled
+            Transitions:
+              - StorageClass: STANDARD_IA
+                TransitionInDays: 90
+          - Id: ExpireOldVersions
+            Status: Enabled
+            NoncurrentVersionExpiration:
+              NoncurrentDays: 365
+      Tags:
+        - Key: Project
+          Value: cime-agente-comercial
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Purpose
+          Value: long-term-memory
+
+  # ===========================================================================
+  # S3 — Bucket de Documentos KB (Req 11.3)
+  # ===========================================================================
+
+  KBDocumentsBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "cime-kb-documentos-${AWS::AccountId}"
+      VersioningConfiguration:
+        Status: Enabled
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      Tags:
+        - Key: Project
+          Value: cime-agente-comercial
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Purpose
+          Value: knowledge-base-documents
+
+  # Política de bucket: solo el rol del agente puede acceder
+  KBDocumentsBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref KBDocumentsBucket
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: AllowAgentRoleOnly
+            Effect: Allow
+            Principal:
+              AWS: !GetAtt AgentExecutionRole.Arn
+            Action:
+              - s3:GetObject
+              - s3:ListBucket
+            Resource:
+              - !GetAtt KBDocumentsBucket.Arn
+              - !Sub "${KBDocumentsBucket.Arn}/*"
+          - Sid: DenyAllOtherAccess
+            Effect: Deny
+            Principal: "*"
+            Action: s3:*
+            Resource:
+              - !GetAtt KBDocumentsBucket.Arn
+              - !Sub "${KBDocumentsBucket.Arn}/*"
+            Condition:
+              StringNotEquals:
+                aws:PrincipalArn:
+                  - !GetAtt AgentExecutionRole.Arn
+                  - !Sub "arn:aws:iam::${AWS::AccountId}:root"
+
+  # ===========================================================================
+  # IAM — Rol de Ejecución del Agente (Req 12.1)
+  # Principio de mínimo privilegio
+  # ===========================================================================
+
+  AgentExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "cime-agent-execution-role-${Environment}"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - bedrock.amazonaws.com
+                - lambda.amazonaws.com
+            Action: sts:AssumeRole
+            Condition:
+              StringEquals:
+                aws:SourceAccount: !Ref AWS::AccountId
+      Policies:
+        # DynamoDB — Memoria de corto plazo
+        - PolicyName: DynamoDBShortTermMemory
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:PutItem
+                  - dynamodb:UpdateItem
+                  - dynamodb:DeleteItem
+                  - dynamodb:Query
+                Resource:
+                  - !GetAtt AgentSessionsTable.Arn
+                  - !Sub "${AgentSessionsTable.Arn}/index/*"
+        # S3 — Memoria de largo plazo
+        - PolicyName: S3LongTermMemory
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:PutObject
+                  - s3:ListBucket
+                Resource:
+                  - !GetAtt AgentMemoryBucket.Arn
+                  - !Sub "${AgentMemoryBucket.Arn}/memoria/*"
+        # S3 — Documentos KB (solo lectura)
+        - PolicyName: S3KBDocuments
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:ListBucket
+                Resource:
+                  - !GetAtt KBDocumentsBucket.Arn
+                  - !Sub "${KBDocumentsBucket.Arn}/*"
+        # Bedrock — Invocar modelos y KB
+        - PolicyName: BedrockAccess
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - bedrock:InvokeModel
+                  - bedrock:InvokeModelWithResponseStream
+                  - bedrock:Retrieve
+                  - bedrock:RetrieveAndGenerate
+                Resource: "*"
+        # SES — Envío de correos
+        - PolicyName: SESEmailSending
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ses:SendEmail
+                  - ses:SendRawEmail
+                Resource:
+                  - !Sub "arn:aws:ses:${PrimaryRegion}:${AWS::AccountId}:identity/${SESVerifiedDomain}"
+                  - !Sub "arn:aws:ses:${PrimaryRegion}:${AWS::AccountId}:configuration-set/cime-agent-tracking-${Environment}"
+        # Secrets Manager — Credenciales de tools (solo lectura)
+        - PolicyName: SecretsManagerAccess
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                Resource:
+                  - !Sub "arn:aws:secretsmanager:${PrimaryRegion}:${AWS::AccountId}:secret:cime/pipefy/api-token-*"
+                  - !Sub "arn:aws:secretsmanager:${PrimaryRegion}:${AWS::AccountId}:secret:cime/ses/smtp-credentials-*"
+                  - !Sub "arn:aws:secretsmanager:${PrimaryRegion}:${AWS::AccountId}:secret:cime/tesoreria/endpoint-key-*"
+                  - !Sub "arn:aws:secretsmanager:${PrimaryRegion}:${AWS::AccountId}:secret:cime/comercial/slack-webhook-*"
+        # CloudWatch — Observabilidad
+        - PolicyName: CloudWatchObservability
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                  - cloudwatch:PutMetricData
+                  - xray:PutTraceSegments
+                  - xray:PutTelemetryRecords
+                Resource: "*"
+      Tags:
+        - Key: Project
+          Value: cime-agente-comercial
+        - Key: Environment
+          Value: !Ref Environment
+
+  # ===========================================================================
+  # Amazon SES — Configuration Set para tracking (Req 2.1, 2.6, 2.7)
+  # ===========================================================================
+
+  SESConfigurationSet:
+    Type: AWS::SES::ConfigurationSet
+    Properties:
+      Name: !Sub "cime-agent-tracking-${Environment}"
+      TrackingOptions:
+        CustomRedirectDomain: !Ref SESVerifiedDomain
+      ReputationOptions:
+        ReputationMetricsEnabled: true
+      SendingOptions:
+        SendingEnabled: true
+      SuppressionOptions:
+        SuppressedReasons:
+          - BOUNCE
+          - COMPLAINT
+
+  # Event destination para CloudWatch (bounces y complaints)
+  SESEventDestination:
+    Type: AWS::SES::ConfigurationSetEventDestination
+    Properties:
+      ConfigurationSetName: !Ref SESConfigurationSet
+      EventDestination:
+        Name: !Sub "cime-ses-cloudwatch-${Environment}"
+        Enabled: true
+        MatchingEventTypes:
+          - bounce
+          - complaint
+          - delivery
+          - send
+          - reject
+        CloudWatchDestination:
+          DimensionConfigurations:
+            - DimensionName: Environment
+              DimensionValueSource: emailHeader
+              DefaultDimensionValue: !Ref Environment
+
+  # ===========================================================================
+  # Secrets Manager — 4 secretos con rotación automática (Req 12.3, 9.3)
+  # ===========================================================================
+
+  # Secreto 1: Pipefy API Token
+  SecretPipefyToken:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: !Sub "cime/pipefy/api-token"
+      Description: "Token Bearer para autenticación con Pipefy GraphQL API"
+      SecretString: !Sub |
+        {
+          "token": "PLACEHOLDER-CAMBIAR-ANTES-DE-PRODUCCION"
+        }
+      Tags:
+        - Key: Project
+          Value: cime-agente-comercial
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Tool
+          Value: consultar_pipefy,actualizar_pipefy
+
+  SecretPipefyRotation:
+    Type: AWS::SecretsManager::RotationSchedule
+    Properties:
+      SecretId: !Ref SecretPipefyToken
+      RotationRules:
+        AutomaticallyAfterDays: 90
+
+  # Secreto 2: SES SMTP Credentials
+  SecretSESCredentials:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: !Sub "cime/ses/smtp-credentials"
+      Description: "Credenciales SMTP de Amazon SES para envío de correos"
+      SecretString: !Sub |
+        {
+          "smtp_username": "PLACEHOLDER-CAMBIAR",
+          "smtp_password": "PLACEHOLDER-CAMBIAR",
+          "sender_email": "renovaciones@${SESVerifiedDomain}"
+        }
+      Tags:
+        - Key: Project
+          Value: cime-agente-comercial
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Tool
+          Value: enviar_correo
+
+  SecretSESRotation:
+    Type: AWS::SecretsManager::RotationSchedule
+    Properties:
+      SecretId: !Ref SecretSESCredentials
+      RotationRules:
+        AutomaticallyAfterDays: 90
+
+  # Secreto 3: Tesorería Endpoint Key
+  SecretTesoreriaKey:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: !Sub "cime/tesoreria/endpoint-key"
+      Description: "API key y URL del endpoint interno de Tesorería"
+      SecretString: !Sub |
+        {
+          "url": "https://tesoreria-api.internal.${SESVerifiedDomain}/v1/notificaciones",
+          "api_key": "PLACEHOLDER-CAMBIAR-ANTES-DE-PRODUCCION"
+        }
+      Tags:
+        - Key: Project
+          Value: cime-agente-comercial
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Tool
+          Value: notificar_tesoreria
+
+  SecretTesoreriaRotation:
+    Type: AWS::SecretsManager::RotationSchedule
+    Properties:
+      SecretId: !Ref SecretTesoreriaKey
+      RotationRules:
+        AutomaticallyAfterDays: 90
+
+  # Secreto 4: Slack Webhook para Escalamientos
+  SecretSlackWebhook:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: !Sub "cime/comercial/slack-webhook"
+      Description: "URL del webhook de Slack para notificaciones de escalamiento"
+      SecretString: !Sub |
+        {
+          "webhook_url": "https://hooks.slack.com/services/PLACEHOLDER/CAMBIAR/ANTES-PRODUCCION"
+        }
+      Tags:
+        - Key: Project
+          Value: cime-agente-comercial
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Tool
+          Value: escalar_humano
+
+  SecretSlackRotation:
+    Type: AWS::SecretsManager::RotationSchedule
+    Properties:
+      SecretId: !Ref SecretSlackWebhook
+      RotationRules:
+        AutomaticallyAfterDays: 90
+
+  # ===========================================================================
+  # CloudWatch — Log Groups para Observabilidad (Req 10.1)
+  # ===========================================================================
+
+  AgentLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/agentcore/cime/agent-${Environment}"
+      RetentionInDays: 90
+      Tags:
+        - Key: Project
+          Value: cime-agente-comercial
+        - Key: Environment
+          Value: !Ref Environment
+
+  EscalationFallbackLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/agentcore/cime/escalamientos-fallback"
+      RetentionInDays: 365
+      Tags:
+        - Key: Project
+          Value: cime-agente-comercial
+        - Key: Environment
+          Value: !Ref Environment
+
+# ===========================================================================
+# Outputs
+# ===========================================================================
+
+Outputs:
+  SessionsTableName:
+    Description: Nombre de la tabla DynamoDB para sesiones
+    Value: !Ref AgentSessionsTable
+    Export:
+      Name: !Sub "${AWS::StackName}-SessionsTable"
+
+  SessionsTableArn:
+    Description: ARN de la tabla DynamoDB
+    Value: !GetAtt AgentSessionsTable.Arn
+    Export:
+      Name: !Sub "${AWS::StackName}-SessionsTableArn"
+
+  MemoryBucketName:
+    Description: Nombre del bucket S3 de memoria de largo plazo
+    Value: !Ref AgentMemoryBucket
+    Export:
+      Name: !Sub "${AWS::StackName}-MemoryBucket"
+
+  KBBucketName:
+    Description: Nombre del bucket S3 de documentos KB
+    Value: !Ref KBDocumentsBucket
+    Export:
+      Name: !Sub "${AWS::StackName}-KBBucket"
+
+  AgentExecutionRoleArn:
+    Description: ARN del rol IAM de ejecución del agente
+    Value: !GetAtt AgentExecutionRole.Arn
+    Export:
+      Name: !Sub "${AWS::StackName}-AgentRoleArn"
+
+  SESConfigurationSetName:
+    Description: Nombre del configuration set de SES
+    Value: !Ref SESConfigurationSet
+    Export:
+      Name: !Sub "${AWS::StackName}-SESConfigSet"
+
+  SecretPipefyArn:
+    Description: ARN del secreto de Pipefy
+    Value: !Ref SecretPipefyToken
+    Export:
+      Name: !Sub "${AWS::StackName}-SecretPipefy"
+
+  SecretSESArn:
+    Description: ARN del secreto de SES
+    Value: !Ref SecretSESCredentials
+    Export:
+      Name: !Sub "${AWS::StackName}-SecretSES"
+
+  SecretTesoreriaArn:
+    Description: ARN del secreto de Tesorería
+    Value: !Ref SecretTesoreriaKey
+    Export:
+      Name: !Sub "${AWS::StackName}-SecretTesoreria"
+
+  SecretSlackArn:
+    Description: ARN del secreto de Slack
+    Value: !Ref SecretSlackWebhook
+    Export:
+      Name: !Sub "${AWS::StackName}-SecretSlack"

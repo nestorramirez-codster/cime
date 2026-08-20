@@ -1,0 +1,169 @@
+# CloudFormation template para Knowledge Base de Amazon Bedrock con S3 Vectors
+# Agente Comercial IA — CIME Power Systems
+#
+# Recursos creados:
+#   - Knowledge Base en Bedrock con vector store S3 Vectors
+#   - Data Source S3 apuntando al bucket de documentos
+#   - IAM Role para que la KB acceda al bucket S3
+#   - Configuración de embeddings con Amazon Titan Embeddings v2
+#   - Chunking strategy: fixed_size, 1000 tokens, overlap 200
+#
+# Requisitos: 11.1, 11.3, 11.4
+
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >
+  Knowledge Base de Amazon Bedrock con S3 Vectors para el Agente Comercial IA.
+  Configura embeddings (Titan v2), chunking (1000/200), y data source S3.
+
+Parameters:
+  Environment:
+    Type: String
+    Default: dev
+    AllowedValues: [dev, staging, prod]
+    Description: Entorno de despliegue
+
+  KBBucketName:
+    Type: String
+    Description: Nombre del bucket S3 con los documentos de la KB
+    # Se espera formato: cime-kb-documentos-{account_id}
+
+  PrimaryRegion:
+    Type: String
+    Default: us-east-1
+    AllowedValues: [us-east-1, us-west-2]
+    Description: Región donde se despliega la KB (verificar disponibilidad S3 Vectors)
+
+Resources:
+  # --------------------------------------------------------------------------
+  # IAM Role para la Knowledge Base
+  # --------------------------------------------------------------------------
+  KBServiceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "cime-kb-service-role-${Environment}"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: bedrock.amazonaws.com
+            Action: sts:AssumeRole
+            Condition:
+              StringEquals:
+                aws:SourceAccount: !Ref AWS::AccountId
+      Policies:
+        - PolicyName: KBAccessS3Documents
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              # Permiso para leer documentos del bucket S3
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:ListBucket
+                Resource:
+                  - !Sub "arn:aws:s3:::${KBBucketName}"
+                  - !Sub "arn:aws:s3:::${KBBucketName}/*"
+              # Permiso para escribir vectores en S3 Vectors
+              - Effect: Allow
+                Action:
+                  - s3:PutObject
+                  - s3:DeleteObject
+                Resource:
+                  - !Sub "arn:aws:s3:::${KBBucketName}/.vector_store/*"
+        - PolicyName: KBAccessBedrock
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              # Permiso para invocar modelo de embeddings
+              - Effect: Allow
+                Action:
+                  - bedrock:InvokeModel
+                Resource:
+                  - !Sub "arn:aws:bedrock:${PrimaryRegion}::foundation-model/amazon.titan-embed-text-v2:0"
+      Tags:
+        - Key: Project
+          Value: cime-agente-comercial
+        - Key: Environment
+          Value: !Ref Environment
+
+  # --------------------------------------------------------------------------
+  # Knowledge Base en Amazon Bedrock
+  # --------------------------------------------------------------------------
+  CIMEKnowledgeBase:
+    Type: AWS::Bedrock::KnowledgeBase
+    Properties:
+      Name: !Sub "cime-kb-renovaciones-${Environment}"
+      Description: >
+        Knowledge Base para el Agente Comercial IA de CIME Power Systems.
+        Contiene reglas comerciales, catálogo de precios, plantillas de mensajes
+        y criterios de escalamiento para la gestión de renovaciones de pólizas.
+      RoleArn: !GetAtt KBServiceRole.Arn
+      KnowledgeBaseConfiguration:
+        Type: VECTOR
+        VectorKnowledgeBaseConfiguration:
+          EmbeddingModelArn: !Sub "arn:aws:bedrock:${PrimaryRegion}::foundation-model/amazon.titan-embed-text-v2:0"
+      StorageConfiguration:
+        Type: S3
+        S3Configuration:
+          BucketArn: !Sub "arn:aws:s3:::${KBBucketName}"
+      Tags:
+        Project: cime-agente-comercial
+        Environment: !Ref Environment
+
+  # --------------------------------------------------------------------------
+  # Data Source S3 para la Knowledge Base
+  # --------------------------------------------------------------------------
+  CIMEDataSource:
+    Type: AWS::Bedrock::DataSource
+    Properties:
+      KnowledgeBaseId: !GetAtt CIMEKnowledgeBase.KnowledgeBaseId
+      Name: !Sub "cime-kb-s3-source-${Environment}"
+      Description: >
+        Data source S3 con los 4 documentos de la KB:
+        reglas_comerciales.md, catalogo_precios.json,
+        plantillas_mensajes.md, criterios_escalamiento.md
+      DataSourceConfiguration:
+        Type: S3
+        S3Configuration:
+          BucketArn: !Sub "arn:aws:s3:::${KBBucketName}"
+      VectorIngestionConfiguration:
+        ChunkingConfiguration:
+          ChunkingStrategy: FIXED_SIZE
+          FixedSizeChunkingConfiguration:
+            MaxTokens: 1000
+            OverlapPercentage: 20  # ~200 tokens de overlap (20% de 1000)
+      Tags:
+        Project: cime-agente-comercial
+        Environment: !Ref Environment
+
+Outputs:
+  KnowledgeBaseId:
+    Description: ID de la Knowledge Base creada
+    Value: !GetAtt CIMEKnowledgeBase.KnowledgeBaseId
+    Export:
+      Name: !Sub "${AWS::StackName}-KnowledgeBaseId"
+
+  KnowledgeBaseArn:
+    Description: ARN de la Knowledge Base
+    Value: !GetAtt CIMEKnowledgeBase.KnowledgeBaseArn
+    Export:
+      Name: !Sub "${AWS::StackName}-KnowledgeBaseArn"
+
+  DataSourceId:
+    Description: ID del Data Source S3
+    Value: !GetAtt CIMEDataSource.DataSourceId
+    Export:
+      Name: !Sub "${AWS::StackName}-DataSourceId"
+
+  KBServiceRoleArn:
+    Description: ARN del rol IAM de la KB
+    Value: !GetAtt KBServiceRole.Arn
+    Export:
+      Name: !Sub "${AWS::StackName}-KBServiceRoleArn"
+
+  KBBucketNameOutput:
+    Description: Bucket S3 de documentos de la KB
+    Value: !Ref KBBucketName
+    Export:
+      Name: !Sub "${AWS::StackName}-KBBucket"

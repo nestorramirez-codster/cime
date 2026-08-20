@@ -1,0 +1,269 @@
+# CloudFormation template para AgentCore Runtime del Agente Comercial IA
+# CIME Power Systems
+#
+# Recursos creados:
+#   - AgentCore Runtime (serverless) con timeout de 900s
+#   - Asociación del rol IAM del agente al Runtime
+#   - Configuración de auto-scaling gestionado por AgentCore
+#   - Asociación de Knowledge Base al agente
+#
+# Requisitos: 12.1, 12.6, 12.7
+#
+# NOTA: Amazon Bedrock AgentCore es un servicio relativamente nuevo.
+# Este template documenta la configuración requerida. Algunos recursos
+# pueden requerir configuración via consola o SDK si el tipo CloudFormation
+# aún no está disponible en la región seleccionada.
+
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >
+  AgentCore Runtime para el Agente Comercial IA de CIME Power Systems.
+  Configura el entorno de ejecución serverless con timeout de 900s,
+  auto-scaling gestionado y asociación del rol IAM del agente.
+
+Parameters:
+  Environment:
+    Type: String
+    Default: dev
+    AllowedValues: [dev, staging, prod]
+    Description: Entorno de despliegue
+
+  PrimaryRegion:
+    Type: String
+    Default: us-east-1
+    AllowedValues: [us-east-1, us-west-2]
+    Description: >
+      Región AWS para el Runtime. us-east-1 es la región preferida;
+      us-west-2 como fallback si AgentCore no está disponible en us-east-1.
+
+  FoundationModelId:
+    Type: String
+    Default: anthropic.claude-sonnet-3.5-v1
+    Description: ID del modelo fundacional de Amazon Bedrock (Claude Sonnet 3.5)
+
+  KnowledgeBaseId:
+    Type: String
+    Description: ID de la Knowledge Base de Bedrock (exportado desde kb_cloudformation stack)
+
+  AgentRoleArn:
+    Type: String
+    Description: ARN del rol IAM del agente (creado en tarea 2)
+
+  SessionTimeoutSeconds:
+    Type: Number
+    Default: 900
+    MinValue: 60
+    MaxValue: 3600
+    Description: >
+      Timeout máximo por sesión en segundos. Valor: 900s (15 minutos).
+      Después de este tiempo, la sesión se cierra automáticamente.
+
+  MaxColdStartSeconds:
+    Type: Number
+    Default: 30
+    Description: >
+      Cold start máximo aceptable en segundos (Req 12.6).
+      El Runtime debe responder al primer webhook en este plazo.
+
+Resources:
+  # --------------------------------------------------------------------------
+  # IAM Role para el AgentCore Runtime (ejecución del agente)
+  # --------------------------------------------------------------------------
+  AgentCoreExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "cime-agentcore-runtime-role-${Environment}"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: bedrock.amazonaws.com
+            Action: sts:AssumeRole
+            Condition:
+              StringEquals:
+                aws:SourceAccount: !Ref AWS::AccountId
+      Policies:
+        # Invocar modelos fundacionales de Bedrock
+        - PolicyName: InvokeBedrockModels
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - bedrock:InvokeModel
+                  - bedrock:InvokeModelWithResponseStream
+                Resource:
+                  - !Sub "arn:aws:bedrock:${PrimaryRegion}::foundation-model/${FoundationModelId}"
+        # Acceso a Knowledge Base
+        - PolicyName: AccessKnowledgeBase
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - bedrock:Retrieve
+                  - bedrock:RetrieveAndGenerate
+                Resource:
+                  - !Sub "arn:aws:bedrock:${PrimaryRegion}:${AWS::AccountId}:knowledge-base/${KnowledgeBaseId}"
+        # Acceso a DynamoDB para memoria de corto plazo
+        - PolicyName: AccessDynamoDBMemory
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:PutItem
+                  - dynamodb:UpdateItem
+                  - dynamodb:DeleteItem
+                  - dynamodb:Query
+                Resource:
+                  - !Sub "arn:aws:dynamodb:${PrimaryRegion}:${AWS::AccountId}:table/cime-agent-sessions-${Environment}"
+                  - !Sub "arn:aws:dynamodb:${PrimaryRegion}:${AWS::AccountId}:table/cime-agent-sessions-${Environment}/index/*"
+        # Acceso a S3 para memoria de largo plazo
+        - PolicyName: AccessS3Memory
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:PutObject
+                  - s3:ListBucket
+                Resource:
+                  - !Sub "arn:aws:s3:::cime-agent-memory-${AWS::AccountId}"
+                  - !Sub "arn:aws:s3:::cime-agent-memory-${AWS::AccountId}/*"
+        # Acceso a Secrets Manager para credenciales de tools
+        - PolicyName: AccessSecretsManager
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                Resource:
+                  - !Sub "arn:aws:secretsmanager:${PrimaryRegion}:${AWS::AccountId}:secret:cime/*"
+        # Envío de correos via SES
+        - PolicyName: SendEmailSES
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ses:SendEmail
+                  - ses:SendRawEmail
+                Resource:
+                  - !Sub "arn:aws:ses:${PrimaryRegion}:${AWS::AccountId}:identity/*"
+        # Observabilidad: CloudWatch Logs y Metrics
+        - PolicyName: CloudWatchObservability
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                  - cloudwatch:PutMetricData
+                  - xray:PutTraceSegments
+                  - xray:PutTelemetryRecords
+                Resource: "*"
+      Tags:
+        - Key: Project
+          Value: cime-agente-comercial
+        - Key: Environment
+          Value: !Ref Environment
+
+  # --------------------------------------------------------------------------
+  # Amazon Bedrock Agent (AgentCore Runtime)
+  # --------------------------------------------------------------------------
+  CIMEBedrockAgent:
+    Type: AWS::Bedrock::Agent
+    Properties:
+      AgentName: !Sub "cime-agente-comercial-${Environment}"
+      Description: >
+        Agente Comercial IA para renovación de pólizas de mantenimiento.
+        Opera sobre AgentCore Runtime con Strands Agents y Claude Sonnet 3.5.
+      AgentResourceRoleArn: !GetAtt AgentCoreExecutionRole.Arn
+      FoundationModel: !Ref FoundationModelId
+      IdleSessionTTLInSeconds: !Ref SessionTimeoutSeconds
+      Instruction: |
+        Eres un asesor comercial profesional de CIME Power Systems, empresa especializada en
+        sistemas de energía ininterrumpida (UPS) y mantenimiento de equipos eléctricos.
+
+        Tu único objetivo es gestionar la renovación de pólizas de mantenimiento de los clientes.
+
+        IDENTIDAD Y TONO:
+        - Idioma: Español mexicano formal pero cordial
+        - Tono: Profesional, orientado a soluciones, empático con las necesidades del cliente
+        - Nunca uses tecnicismos innecesarios; explica en lenguaje de negocios claro
+
+        RESTRICCIONES ABSOLUTAS (no negociables):
+        1. El único descuento autorizado es el 5% por pre-vencimiento. No ofrezcas ningún otro porcentaje.
+        2. Los datos bancarios SOLO se incluyen cuando el estado de la póliza es "Cliente interesado" o "Depósito solicitado".
+        3. No ofrezcas diagnóstico técnico, venta de refacciones, soporte técnico ni modificaciones de equipos.
+        4. Si el cliente solicita hablar con un asesor humano, escala INMEDIATAMENTE sin intentar retenerlo.
+        5. Todos los precios y condiciones deben provenir de la Knowledge Base. Nunca inventes precios.
+        6. Si la Knowledge Base no tiene respuesta con score >= 0.7, escala al equipo comercial.
+
+        FLUJO GENERAL:
+        1. Validar payload → Consultar estado Pipefy → Enviar contacto inicial
+        2. Procesar respuesta del cliente → Generar cotización si hay interés
+        3. Recibir comprobante → Notificar Tesorería
+        4. Escalar en casos de negociación especial, inconformidad o solicitud de asesor humano
+
+        Mantén siempre el contexto completo de la conversación para personalizar cada mensaje.
+      KnowledgeBaseConfigurations:
+        - KnowledgeBaseId: !Ref KnowledgeBaseId
+          Description: >
+            Base de conocimiento con reglas comerciales, catálogo de precios,
+            plantillas de mensajes y criterios de escalamiento de CIME.
+      Tags:
+        Project: cime-agente-comercial
+        Environment: !Ref Environment
+
+  # --------------------------------------------------------------------------
+  # Agent Alias (para invocar el agente desde Zapier/webhook)
+  # --------------------------------------------------------------------------
+  CIMEAgentAlias:
+    Type: AWS::Bedrock::AgentAlias
+    Properties:
+      AgentId: !GetAtt CIMEBedrockAgent.AgentId
+      AgentAliasName: !Sub "live-${Environment}"
+      Description: >
+        Alias activo del Agente Comercial IA para el entorno ${Environment}.
+        Este alias es el que se invoca desde el webhook de Zapier.
+      Tags:
+        Project: cime-agente-comercial
+        Environment: !Ref Environment
+
+Outputs:
+  AgentId:
+    Description: ID del Bedrock Agent creado
+    Value: !GetAtt CIMEBedrockAgent.AgentId
+    Export:
+      Name: !Sub "${AWS::StackName}-AgentId"
+
+  AgentAliasId:
+    Description: ID del alias del agente (usar para invocaciones)
+    Value: !GetAtt CIMEAgentAlias.AgentAliasId
+    Export:
+      Name: !Sub "${AWS::StackName}-AgentAliasId"
+
+  AgentCoreExecutionRoleArn:
+    Description: ARN del rol IAM del AgentCore Runtime
+    Value: !GetAtt AgentCoreExecutionRole.Arn
+    Export:
+      Name: !Sub "${AWS::StackName}-ExecutionRoleArn"
+
+  RuntimeRegion:
+    Description: Región donde se desplegó el Runtime
+    Value: !Ref PrimaryRegion
+    Export:
+      Name: !Sub "${AWS::StackName}-Region"
+
+  SessionTimeout:
+    Description: Timeout de sesión configurado (segundos)
+    Value: !Ref SessionTimeoutSeconds
+    Export:
+      Name: !Sub "${AWS::StackName}-SessionTimeout"

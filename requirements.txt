@@ -1,0 +1,15 @@
+# Dependencias pinneadas — Agente Comercial IA · CIME Power Systems
+# Framework de agente y SDK AWS
+strands-agents==0.1.6
+boto3==1.35.99
+
+# Testing
+hypothesis==6.112.0
+pytest==8.3.4
+pytest-asyncio==0.24.0
+
+# Validación y modelos
+pydantic==2.10.3
+
+# Utilidades de fecha/hora y email
+python-dateutil==2.9.0.post0

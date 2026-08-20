@@ -1,0 +1,478 @@
+# ===========================================================================
+# AgentCore Gateway — Registro de Tools MCP
+# Agente Comercial IA — CIME Power Systems
+#
+# Define las 5 tools MCP expuestas al agente vía AgentCore Gateway.
+# Cada tool incluye:
+#   - Nombre y descripción
+#   - Schema de entrada (input) con tipos y validaciones
+#   - Schema de salida (output)
+#   - Configuración de autorización (secreto en Secrets Manager + scope)
+#   - Política de timeout y retry
+#
+# Requisitos: 12.2, 12.8
+# ===========================================================================
+
+apiVersion: agentcore/v1
+kind: GatewayToolRegistration
+metadata:
+  name: cime-agente-comercial-tools
+  description: >
+    Registro de las 5 tools MCP para el Agente Comercial IA de CIME Power Systems.
+    Cada tool opera con credenciales exclusivas emitidas por AgentCore Identity.
+  environment: ${ENVIRONMENT}
+  region: us-east-1
+
+# ---------------------------------------------------------------------------
+# Configuración global de autorización
+# ---------------------------------------------------------------------------
+authorization:
+  provider: agentcore-identity
+  tokenIssuer: arn:aws:bedrock:us-east-1:${AWS_ACCOUNT_ID}:agent-runtime/cime-agente-comercial
+  # Cada tool SOLO acepta tokens con el scope correspondiente.
+  # Un token emitido para una tool es rechazado por las demás (Req 12.8).
+  enforceExclusiveScope: true
+  tokenExpiration: 300  # segundos (5 minutos)
+
+# ---------------------------------------------------------------------------
+# Definición de Tools MCP
+# ---------------------------------------------------------------------------
+tools:
+
+  # =========================================================================
+  # Tool 1: consultar_pipefy
+  # =========================================================================
+  - name: consultar_pipefy
+    description: >
+      Consulta el estado actual de una póliza en el tablero operativo de Pipefy.
+      Retorna datos del cliente, estado de seguimiento y metadatos de la card.
+    target:
+      type: mcp
+      endpoint: https://api.pipefy.com/graphql
+      method: POST
+    authorization:
+      secretArn: arn:aws:secretsmanager:us-east-1:${AWS_ACCOUNT_ID}:secret:cime/pipefy/api-token
+      scope: pipefy:read
+      headerName: Authorization
+      headerFormat: "Bearer {token}"
+    timeout:
+      requestSeconds: 30  # Req 1.5
+    retry:
+      maxAttempts: 0  # Sin retry — el agente termina sesión en caso de fallo
+    inputSchema:
+      type: object
+      required:
+        - poliza_id
+      properties:
+        poliza_id:
+          type: string
+          description: Identificador único de la póliza en Pipefy (no vacío)
+          minLength: 1
+    outputSchema:
+      type: object
+      description: PipelineCard — datos completos de la póliza consultada
+      properties:
+        poliza_id:
+          type: string
+          description: ID de la póliza consultada
+        estado_actual:
+          type: string
+          description: Estado actual en el tablero de Pipefy (uno de los 10 estados válidos)
+          enum:
+            - "Póliza detectada"
+            - "Contacto inicial enviado"
+            - "Seguimiento en curso"
+            - "Cliente interesado"
+            - "Depósito solicitado"
+            - "Comprobante recibido"
+            - "En validación con tesorería"
+            - "Renovación confirmada"
+            - "Escalado a humano"
+            - "No renovada / sin respuesta"
+        cliente_nombre:
+          type: string
+          description: Nombre del cliente o empresa
+        cliente_email:
+          type: string
+          format: email
+          description: Correo electrónico del cliente (RFC 5321)
+        fecha_vencimiento:
+          type: string
+          format: date
+          description: Fecha de vencimiento de la póliza (ISO 8601 YYYY-MM-DD)
+        precio_renovacion:
+          type: number
+          description: Precio de renovación en MXN
+          minimum: 0
+        equipo_nombre:
+          type: string
+          description: Nombre del equipo cubierto por la póliza
+        timestamp_ultima_actualizacion:
+          type: string
+          format: date-time
+          description: Timestamp UTC de la última actualización en Pipefy
+        notas:
+          type: array
+          items:
+            type: string
+          description: Notas históricas del tablero operativo
+
+  # =========================================================================
+  # Tool 2: actualizar_pipefy
+  # =========================================================================
+  - name: actualizar_pipefy
+    description: >
+      Actualiza el Estado_Pipefy de una póliza con trazabilidad completa.
+      Incluye nota descriptiva, session_id y timestamp UTC en cada actualización.
+    target:
+      type: mcp
+      endpoint: https://api.pipefy.com/graphql
+      method: POST
+    authorization:
+      secretArn: arn:aws:secretsmanager:us-east-1:${AWS_ACCOUNT_ID}:secret:cime/pipefy/api-token
+      scope: pipefy:write
+      headerName: Authorization
+      headerFormat: "Bearer {token}"
+    timeout:
+      requestSeconds: 30
+    retry:
+      maxAttempts: 2  # Req 7.4 — 2 reintentos con backoff exponencial
+      backoffBaseSeconds: 30
+      backoffMultiplier: 2  # 30s → 60s
+    inputSchema:
+      type: object
+      required:
+        - poliza_id
+        - estado
+        - nota
+        - session_id
+      properties:
+        poliza_id:
+          type: string
+          description: Identificador único de la póliza
+          minLength: 1
+        estado:
+          type: string
+          description: Nuevo estado a registrar (debe ser uno de los 10 estados válidos)
+          enum:
+            - "Póliza detectada"
+            - "Contacto inicial enviado"
+            - "Seguimiento en curso"
+            - "Cliente interesado"
+            - "Depósito solicitado"
+            - "Comprobante recibido"
+            - "En validación con tesorería"
+            - "Renovación confirmada"
+            - "Escalado a humano"
+            - "No renovada / sin respuesta"
+        nota:
+          type: string
+          description: Descripción breve de la acción que generó el cambio
+          maxLength: 200
+        session_id:
+          type: string
+          description: Identificador de sesión AgentCore para trazabilidad
+          minLength: 1
+    outputSchema:
+      type: object
+      properties:
+        success:
+          type: boolean
+          description: True si la actualización fue exitosa
+
+  # =========================================================================
+  # Tool 3: enviar_correo
+  # =========================================================================
+  - name: enviar_correo
+    description: >
+      Envía un correo electrónico al cliente vía Amazon SES.
+      Soporta contenido HTML y adjuntos referenciados por S3 key.
+    target:
+      type: mcp
+      endpoint: https://email.us-east-1.amazonaws.com
+      method: POST
+      service: ses
+    authorization:
+      secretArn: arn:aws:secretsmanager:us-east-1:${AWS_ACCOUNT_ID}:secret:cime/ses/smtp-credentials
+      scope: ses:send
+      authType: aws-sigv4
+      service: ses
+      region: us-east-1
+    timeout:
+      requestSeconds: 60
+    retry:
+      maxAttempts: 1  # Req 2.6 — 1 reintento tras 60s para errores técnicos
+      backoffBaseSeconds: 60
+      nonRetryableErrors:
+        - InvalidParameterValue     # Email inválido → escalar inmediato
+        - MessageRejected           # Rechazo por SES → escalar inmediato
+        - MailFromDomainNotVerified  # Dominio no verificado → escalar inmediato
+    inputSchema:
+      type: object
+      required:
+        - destinatario
+        - asunto
+        - cuerpo
+      properties:
+        destinatario:
+          type: string
+          format: email
+          description: Dirección de correo del destinatario (RFC 5321 válida)
+        asunto:
+          type: string
+          description: Línea de asunto del correo
+          minLength: 1
+        cuerpo:
+          type: string
+          description: Contenido HTML o texto plano del correo
+          minLength: 1
+        adjuntos:
+          type: array
+          items:
+            type: string
+          description: Lista de S3 keys de archivos adjuntos (opcional)
+          default: null
+    outputSchema:
+      type: object
+      description: EmailResult — resultado del envío
+      properties:
+        success:
+          type: boolean
+          description: True si el correo fue enviado exitosamente
+        message_id:
+          type: string
+          description: ID de mensaje de SES (presente si success=true)
+        timestamp:
+          type: string
+          format: date-time
+          description: Timestamp UTC del envío confirmado
+        error_code:
+          type: string
+          description: Código de error (presente si success=false)
+        error_type:
+          type: string
+          description: Tipo de error
+          enum:
+            - invalid_email
+            - technical_error
+            - timeout
+
+  # =========================================================================
+  # Tool 4: notificar_tesoreria
+  # =========================================================================
+  - name: notificar_tesoreria
+    description: >
+      Notifica al equipo de Tesorería sobre un comprobante de pago recibido.
+      Envía los datos completos del comprobante para que Tesorería valide el depósito.
+    target:
+      type: mcp
+      endpoint: ${TESORERIA_ENDPOINT_URL}
+      method: POST
+    authorization:
+      secretArn: arn:aws:secretsmanager:us-east-1:${AWS_ACCOUNT_ID}:secret:cime/tesoreria/endpoint-key
+      scope: tesoreria:notify
+      headerName: Authorization
+      headerFormat: "Bearer {api_key}"
+    timeout:
+      requestSeconds: 60  # Req 5.5
+    retry:
+      maxAttempts: 1  # 1 reintento tras 60s en caso de fallo técnico
+      backoffBaseSeconds: 60
+    inputSchema:
+      type: object
+      required:
+        - datos_pago
+      properties:
+        datos_pago:
+          type: object
+          description: DatosPago — datos completos del comprobante recibido
+          required:
+            - cliente_nombre
+            - poliza_id
+            - monto
+            - timestamp_recepcion
+            - referencia_adjunto
+          properties:
+            cliente_nombre:
+              type: string
+              description: Nombre del cliente que envió el comprobante
+              minLength: 1
+            poliza_id:
+              type: string
+              description: Identificador de la póliza asociada
+              minLength: 1
+            monto:
+              type: number
+              description: Monto de la cotización enviada (MXN)
+              minimum: 0
+              exclusiveMinimum: true
+            timestamp_recepcion:
+              type: string
+              format: date-time
+              description: Momento UTC de recepción del comprobante (ISO 8601)
+            referencia_adjunto:
+              type: string
+              description: S3 key del archivo de comprobante recibido
+              minLength: 1
+    outputSchema:
+      type: object
+      properties:
+        success:
+          type: boolean
+          description: True si la notificación fue entregada a Tesorería
+
+  # =========================================================================
+  # Tool 5: escalar_humano
+  # =========================================================================
+  - name: escalar_humano
+    description: >
+      Escala el caso al Equipo Comercial con contexto completo.
+      Actúa como circuit breaker final del sistema. Nunca falla silenciosamente.
+      Si la notificación vía Slack no se entrega, registra en CloudWatch Logs.
+    target:
+      type: mcp
+      endpoint: ${SLACK_WEBHOOK_URL}
+      method: POST
+    authorization:
+      secretArn: arn:aws:secretsmanager:us-east-1:${AWS_ACCOUNT_ID}:secret:cime/comercial/slack-webhook
+      scope: escalation:notify
+      headerName: Content-Type
+      headerFormat: "application/json"
+    timeout:
+      requestSeconds: 30
+    retry:
+      maxAttempts: 0  # Sin retry — es el circuit breaker final; usa fallback a logs
+    fallback:
+      type: cloudwatch-logs
+      logGroup: /agentcore/cime/escalamientos-fallback
+      description: >
+        Si la notificación Slack falla, el payload completo se registra
+        en CloudWatch Logs a nivel CRITICAL para garantizar trazabilidad.
+    inputSchema:
+      type: object
+      required:
+        - motivo
+        - historial
+        - estado_pipefy
+        - datos_poliza
+      properties:
+        motivo:
+          type: string
+          description: Descripción específica del motivo de escalamiento
+          minLength: 1
+        historial:
+          type: array
+          description: Lista completa de mensajes intercambiados con el cliente
+          items:
+            type: object
+            required:
+              - timestamp
+              - remitente
+              - contenido
+              - tipo
+            properties:
+              timestamp:
+                type: string
+                format: date-time
+                description: Timestamp UTC del mensaje (ISO 8601)
+              remitente:
+                type: string
+                description: Origen del mensaje
+                enum:
+                  - agente
+                  - cliente
+              contenido:
+                type: string
+                description: Texto del mensaje
+              tipo:
+                type: string
+                description: Clasificación del mensaje
+                enum:
+                  - contacto_inicial
+                  - seguimiento
+                  - cotizacion
+                  - confirmacion_comprobante
+                  - encuesta
+                  - respuesta_cliente
+        estado_pipefy:
+          type: string
+          description: Estado actual de la póliza en Pipefy
+          enum:
+            - "Póliza detectada"
+            - "Contacto inicial enviado"
+            - "Seguimiento en curso"
+            - "Cliente interesado"
+            - "Depósito solicitado"
+            - "Comprobante recibido"
+            - "En validación con tesorería"
+            - "Renovación confirmada"
+            - "Escalado a humano"
+            - "No renovada / sin respuesta"
+        datos_poliza:
+          type: object
+          description: DatosPoliza — datos completos de la póliza
+          required:
+            - poliza_id
+            - cliente_nombre
+            - cliente_email
+            - fecha_vencimiento
+            - precio_renovacion
+            - equipo_nombre
+          properties:
+            poliza_id:
+              type: string
+              description: Identificador único de la póliza
+            cliente_nombre:
+              type: string
+              description: Nombre del cliente o empresa
+            cliente_email:
+              type: string
+              format: email
+              description: Correo electrónico del cliente
+            fecha_vencimiento:
+              type: string
+              format: date
+              description: Fecha de vencimiento (ISO 8601 YYYY-MM-DD)
+            precio_renovacion:
+              type: number
+              description: Precio de renovación en MXN
+              minimum: 0
+            equipo_nombre:
+              type: string
+              description: Nombre del equipo cubierto
+    outputSchema:
+      type: object
+      properties:
+        success:
+          type: boolean
+          description: >
+            True siempre — el escalamiento queda registrado vía Slack o
+            fallback a CloudWatch Logs. Nunca falla silenciosamente.
+
+# ---------------------------------------------------------------------------
+# Mapeo de scopes exclusivos por tool (Req 12.8)
+# ---------------------------------------------------------------------------
+# Garantiza que un token emitido para una tool NO es aceptado por otra.
+# AgentCore Identity emite tokens con scope exclusivo por tool.
+# El Gateway valida el scope antes de ejecutar la tool.
+#
+# Matriz de autorización:
+#   consultar_pipefy  → scope: pipefy:read
+#   actualizar_pipefy → scope: pipefy:write
+#   enviar_correo     → scope: ses:send
+#   notificar_tesoreria → scope: tesoreria:notify
+#   escalar_humano    → scope: escalation:notify
+#
+# Si una tool recibe un token con scope de otra tool, el Gateway
+# DEBE rechazar la invocación con HTTP 403 Forbidden y el error:
+#   { "error": "authorization_scope_mismatch",
+#     "message": "Token scope '{received}' no autorizado para tool '{tool_name}'" }
+# ---------------------------------------------------------------------------
+scopeEnforcement:
+  enabled: true
+  rejectOnMismatch: true
+  errorResponse:
+    statusCode: 403
+    body:
+      error: authorization_scope_mismatch
+      message: "Token scope no autorizado para esta tool"

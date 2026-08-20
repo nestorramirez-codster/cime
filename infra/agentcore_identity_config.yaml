@@ -1,0 +1,133 @@
+# AgentCore Identity — Secret-to-Tool Mapping Configuration
+# Agente Comercial IA — CIME Power Systems
+#
+# Este archivo documenta el mapeo de secretos en AWS Secrets Manager
+# a las tools correspondientes del agente en AgentCore Identity.
+#
+# Cada tool tiene acceso EXCLUSIVO al secreto que necesita. Invocar una
+# tool con credenciales de otra tool resulta en error de autorización (Req 12.8).
+#
+# Rotación automática habilitada en Secrets Manager con período de 90 días.
+#
+# Requisitos: 12.3, 12.8
+
+apiVersion: agentcore/v1
+kind: IdentityConfiguration
+metadata:
+  name: cime-agente-comercial-identity
+  environment: "${ENVIRONMENT}"  # dev | staging | prod
+  region: "${AWS_REGION}"        # us-east-1 | us-west-2
+
+# ---------------------------------------------------------------------------
+# Mapeo de Secretos → Tools
+# ---------------------------------------------------------------------------
+# Cada entrada define:
+#   - secretId: ARN o nombre del secreto en AWS Secrets Manager
+#   - tools: lista de tools autorizadas para usar este secreto
+#   - rotationDays: período de rotación automática en días
+#   - description: propósito del secreto
+# ---------------------------------------------------------------------------
+
+secrets:
+  - secretId: "cime/pipefy/api-token"
+    description: "Token Bearer para autenticación con Pipefy GraphQL API"
+    tools:
+      - consultar_pipefy
+      - actualizar_pipefy
+    rotationDays: 90
+    secretFormat:
+      type: json
+      keys:
+        - token  # Bearer token para header Authorization
+    accessPolicy:
+      principal: "arn:aws:iam::${AWS_ACCOUNT_ID}:role/cime-agent-execution-role-${ENVIRONMENT}"
+      actions:
+        - "secretsmanager:GetSecretValue"
+
+  - secretId: "cime/ses/smtp-credentials"
+    description: "Credenciales SMTP de Amazon SES para envío de correos"
+    tools:
+      - enviar_correo
+    rotationDays: 90
+    secretFormat:
+      type: json
+      keys:
+        - smtp_username
+        - smtp_password
+        - sender_email
+    accessPolicy:
+      principal: "arn:aws:iam::${AWS_ACCOUNT_ID}:role/cime-agent-execution-role-${ENVIRONMENT}"
+      actions:
+        - "secretsmanager:GetSecretValue"
+
+  - secretId: "cime/tesoreria/endpoint-key"
+    description: "API key y URL del endpoint interno de Tesorería para notificaciones de pago"
+    tools:
+      - notificar_tesoreria
+    rotationDays: 90
+    secretFormat:
+      type: json
+      keys:
+        - url      # URL del endpoint HTTP de Tesorería
+        - api_key  # API key para header Authorization
+    accessPolicy:
+      principal: "arn:aws:iam::${AWS_ACCOUNT_ID}:role/cime-agent-execution-role-${ENVIRONMENT}"
+      actions:
+        - "secretsmanager:GetSecretValue"
+
+  - secretId: "cime/comercial/slack-webhook"
+    description: "URL del webhook de Slack para escalamientos al Equipo Comercial"
+    tools:
+      - escalar_humano
+    rotationDays: 90
+    secretFormat:
+      type: json
+      keys:
+        - webhook_url  # URL completa del webhook de Slack
+    accessPolicy:
+      principal: "arn:aws:iam::${AWS_ACCOUNT_ID}:role/cime-agent-execution-role-${ENVIRONMENT}"
+      actions:
+        - "secretsmanager:GetSecretValue"
+
+# ---------------------------------------------------------------------------
+# Políticas de seguridad de credenciales (Req 12.3)
+# ---------------------------------------------------------------------------
+
+securityPolicies:
+  # Ningún valor de credencial puede aparecer en:
+  credentialExposurePrevention:
+    - systemPrompt: true        # El system prompt no contiene secrets
+    - conversationHistory: true # El historial no registra secrets
+    - toolResponsePayloads: true # Las respuestas de tools no exponen secrets
+    - observabilityLogs: true   # Los logs enmascaran toda data sensible
+
+  # Verificación de aislamiento de credenciales por tool (Req 12.8)
+  toolCredentialIsolation:
+    enabled: true
+    enforcement: strict  # Error de autorización si tool usa secret ajeno
+
+  # Rotación automática
+  secretRotation:
+    enabled: true
+    periodDays: 90
+    notifyOnRotation: true
+    notificationChannel: "cime/comercial/slack-webhook"
+
+# ---------------------------------------------------------------------------
+# Validación en runtime
+# ---------------------------------------------------------------------------
+
+runtimeValidation:
+  # Verificar que las credenciales no se filtran en outputs
+  outputSanitization:
+    enabled: true
+    patterns:
+      # Patrones a detectar y bloquear en outputs
+      - name: "bearer_token"
+        regex: "Bearer\\s+[A-Za-z0-9\\-._~+/]+=*"
+      - name: "api_key_pattern"
+        regex: "[A-Za-z0-9]{32,}"
+      - name: "slack_webhook"
+        regex: "https://hooks\\.slack\\.com/services/[A-Za-z0-9/]+"
+      - name: "smtp_password"
+        regex: "smtp_password|SMTP_PASSWORD"
