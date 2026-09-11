@@ -62,6 +62,7 @@ def _parsear_payload(body: dict[str, Any]) -> ActivationPayload:
         KeyError: Si faltan campos obligatorios en el body.
     """
     # Extraer campos con valores por defecto seguros para evitar KeyError
+    logger.info(f"Parsing payload raw: precio_renovacion={body.get('precio_renovacion')!r}, fecha_vencimiento={body.get('fecha_vencimiento')!r}")
     poliza_id = body.get("poliza_id", "")
     cliente_nombre = body.get("cliente_nombre", "")
     cliente_email = body.get("cliente_email", "")
@@ -79,9 +80,16 @@ def _parsear_payload(body: dict[str, Any]) -> ActivationPayload:
         # Valor inválido — se asigna un placeholder para que el validador lo rechace
         fecha_vencimiento = date(1900, 1, 1)
 
-    # Convertir precio_renovacion a float
+    # Convertir precio_renovacion a float (tolerar formatos: "$7,243.84", "7,243.84", "7243.84")
     try:
-        precio_renovacion = float(precio_renovacion_raw) if precio_renovacion_raw else 0.0
+        if isinstance(precio_renovacion_raw, (int, float)):
+            precio_renovacion = float(precio_renovacion_raw)
+        elif isinstance(precio_renovacion_raw, str) and precio_renovacion_raw.strip():
+            # Limpiar: quitar $, comas, espacios
+            cleaned = precio_renovacion_raw.strip().replace("$", "").replace(",", "").replace(" ", "")
+            precio_renovacion = float(cleaned) if cleaned else 0.0
+        else:
+            precio_renovacion = 0.0
     except (TypeError, ValueError):
         precio_renovacion = 0.0
 
